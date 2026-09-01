@@ -1,0 +1,36 @@
+{
+  "name": "trash-dash-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:visual": "playwright test",
+    "test:visual:update": "playwright test --update-snapshots",
+    "assets": "npm run assets:textures && npm run assets:models && npm run assets:segments && npm run assets:manifest && npm run assets:audio && npm run assets:validate",
+    "assets:textures": "node tools/convert-textures.mjs",
+    "assets:models": "node tools/convert-models.mjs",
+    "assets:segments": "node tools/extract-segments.mjs",
+    "assets:manifest": "node tools/build-manifest.mjs",
+    "assets:audio": "node tools/copy-audio-fonts.mjs",
+    "assets:validate": "node tools/validate-assets.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@types/three": "^0.185.1",
+    "fast-glob": "^3.3.3",
+    "fbx2gltf": "^0.9.7-p1",
+    "js-yaml": "^5.2.1",
+    "sharp": "^0.35.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "three": "^0.185.1"
+  }
+}

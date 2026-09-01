@@ -1,0 +1,502 @@
+{
+  "day": {
+    "name": "Day",
+    "cost": 0,
+    "premiumCost": 0,
+    "fogColor": [
+      0.86274517,
+      0.9725491,
+      1
+    ],
+    "zones": [
+      {
+        "length": 500,
+        "segments": [
+          "IndustrialWarehouse01",
+          "IndustrialWarehouse02",
+          "UrbanRoadTSection"
+        ]
+      },
+      {
+        "length": 500,
+        "segments": [
+          "SuburbsGarage01",
+          "SuburbsHouse01",
+          "SuburbsHouse02",
+          "SuburbsHouse03"
+        ]
+      },
+      {
+        "length": 500,
+        "segments": [
+          "UrbanBrickWalls01",
+          "UrbanBrickWalls02",
+          "UrbanBrickWalls03",
+          "UrbanBuilding01",
+          "UrbanBuilding02",
+          "UrbanBuilding03",
+          "UrbanBuilding04",
+          "UrbanDumpsters01",
+          "UrbanDumpsters02",
+          "UrbanPlasterWalls01",
+          "UrbanPlasterWalls02",
+          "UrbanPlasterWalls03",
+          "UrbanRoadIntersection",
+          "UrbanRoadTSection"
+        ]
+      }
+    ],
+    "skyModel": "models/Daytime/Sky",
+    "cloudModels": [
+      "DefaultCloud01",
+      "DefaultCloud02",
+      "DefaultCloud03"
+    ],
+    "cloudPrefabs": [
+      {
+        "name": "DefaultCloud01",
+        "root": {
+          "name": "Cloud01",
+          "pos": [
+            55.57,
+            156.07,
+            -76.24
+          ],
+          "rot": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "children": [
+            {
+              "name": "Cloud01",
+              "pos": [
+                0,
+                0,
+                0
+              ],
+              "rot": [
+                0,
+                0,
+                0,
+                1
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "mesh": {
+                "guid": "f04f128ee146c7047a6a4a0ccc4a1bdc",
+                "fileID": "4300004",
+                "name": "Cloud01",
+                "asset": "Assets/Models/Daytime/Cloud01.fbx"
+              },
+              "model": "models/Daytime/Cloud01",
+              "rendererEnabled": true,
+              "materials": [
+                "CloudMaterial"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "DefaultCloud02",
+        "root": {
+          "name": "Cloud02",
+          "pos": [
+            55.57,
+            156.07,
+            -76.24
+          ],
+          "rot": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "children": [
+            {
+              "name": "Cloud02",
+              "pos": [
+                0,
+                0,
+                0
+              ],
+              "rot": [
+                0,
+                0,
+                0,
+                1
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "mesh": {
+                "guid": "3b9892fba65295a4b839fa96a5b7b0f8",
+                "fileID": "4300000",
+                "name": "Cloud02",
+                "asset": "Assets/Models/Daytime/Cloud02.fbx"
+              },
+              "model": "models/Daytime/Cloud02",
+              "rendererEnabled": true,
+              "materials": [
+                "CloudMaterial"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "DefaultCloud03",
+        "root": {
+          "name": "Cloud03",
+          "pos": [
+            55.57,
+            156.07,
+            -76.24
+          ],
+          "rot": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "children": [
+            {
+              "name": "Cloud03",
+              "pos": [
+                0,
+                0,
+                0
+              ],
+              "rot": [
+                0,
+                0,
+                0,
+                1
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "mesh": {
+                "guid": "e3c6f3a775938914f92f111623346cbf",
+                "fileID": "4300000",
+                "name": "Cloud03",
+                "asset": "Assets/Models/Daytime/Cloud03.fbx"
+              },
+              "model": "models/Daytime/Cloud03",
+              "rendererEnabled": true,
+              "materials": [
+                "CloudMaterial"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "cloudMinimumDistance": [
+      0,
+      10,
+      10
+    ],
+    "cloudSpread": [
+      20,
+      1,
+      20
+    ],
+    "cloudNumber": 20,
+    "skyTransform": {
+      "pos": [
+        -0.005,
+        21.605,
+        -3
+      ],
+      "rot": [
+        0,
+        0,
+        1,
+        0
+      ],
+      "scale": [
+        1,
+        1.3964546,
+        1
+      ]
+    },
+    "parallaxRatio": 0.8,
+    "fogStart": 50,
+    "fogEnd": 80
+  },
+  "night": {
+    "name": "NightTime",
+    "cost": 1000,
+    "premiumCost": 15,
+    "fogColor": [
+      0.13559689,
+      0.27861834,
+      0.5588235
+    ],
+    "zones": [
+      {
+        "length": 500,
+        "segments": [
+          "IndustrialWarehouse01",
+          "IndustrialWarehouse02",
+          "IndustrialWarehouse03"
+        ]
+      },
+      {
+        "length": 500,
+        "segments": [
+          "SuburbsGarage01",
+          "SuburbsHouse01",
+          "SuburbsHouse02",
+          "SuburbsHouse03"
+        ]
+      },
+      {
+        "length": 500,
+        "segments": [
+          "UrbanBrickWalls01",
+          "UrbanBrickWalls02",
+          "UrbanBrickWalls03",
+          "UrbanBuilding01",
+          "UrbanBuilding02",
+          "UrbanBuilding03",
+          "UrbanBuilding04",
+          "UrbanDumpsters01",
+          "UrbanDumpsters02",
+          "UrbanPlasterWalls01",
+          "UrbanPlasterWalls02",
+          "UrbanPlasterWalls03",
+          "UrbanRoadIntersection",
+          "UrbanRoadTSection"
+        ]
+      }
+    ],
+    "skyModel": "models/NightTime/SkyNight",
+    "cloudModels": [
+      "NightCloud01",
+      "NightCloud02",
+      "NightCloud03"
+    ],
+    "cloudPrefabs": [
+      {
+        "name": "NightCloud01",
+        "root": {
+          "name": "Cloud01",
+          "pos": [
+            55.57,
+            156.07,
+            -76.24
+          ],
+          "rot": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "children": [
+            {
+              "name": "Cloud01",
+              "pos": [
+                0,
+                0,
+                0
+              ],
+              "rot": [
+                0,
+                0,
+                0,
+                1
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "mesh": {
+                "guid": "f35d89f6a041c76439db836b1bf00997",
+                "fileID": "4300000",
+                "name": "Cloud01Night",
+                "asset": "Assets/Models/NightTime/Cloud01Night.fbx"
+              },
+              "model": "models/NightTime/Cloud01Night",
+              "rendererEnabled": true,
+              "materials": [
+                "CloudMaterial"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "NightCloud02",
+        "root": {
+          "name": "Cloud02",
+          "pos": [
+            55.57,
+            156.07,
+            -76.24
+          ],
+          "rot": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "children": [
+            {
+              "name": "Cloud02",
+              "pos": [
+                0,
+                0,
+                0
+              ],
+              "rot": [
+                0,
+                0,
+                0,
+                1
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "mesh": {
+                "guid": "3b9892fba65295a4b839fa96a5b7b0f8",
+                "fileID": "4300000",
+                "name": "Cloud02",
+                "asset": "Assets/Models/Daytime/Cloud02.fbx"
+              },
+              "model": "models/Daytime/Cloud02",
+              "rendererEnabled": true,
+              "materials": [
+                "CloudMaterial"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "NightCloud03",
+        "root": {
+          "name": "Cloud03",
+          "pos": [
+            55.57,
+            156.07,
+            -76.24
+          ],
+          "rot": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "scale": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "children": [
+            {
+              "name": "Cloud03",
+              "pos": [
+                0,
+                0,
+                0
+              ],
+              "rot": [
+                0,
+                0,
+                0,
+                1
+              ],
+              "scale": [
+                1,
+                1,
+                1
+              ],
+              "mesh": {
+                "guid": "e3c6f3a775938914f92f111623346cbf",
+                "fileID": "4300000",
+                "name": "Cloud03",
+                "asset": "Assets/Models/Daytime/Cloud03.fbx"
+              },
+              "model": "models/Daytime/Cloud03",
+              "rendererEnabled": true,
+              "materials": [
+                "CloudMaterial"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "cloudMinimumDistance": [
+      0,
+      10,
+      10
+    ],
+    "cloudSpread": [
+      20,
+      1,
+      20
+    ],
+    "cloudNumber": 20,
+    "skyTransform": {
+      "pos": [
+        -0.005,
+        21.605,
+        -3
+      ],
+      "rot": [
+        0,
+        0,
+        1,
+        0
+      ],
+      "scale": [
+        1,
+        1.3964546,
+        1
+      ]
+    },
+    "parallaxRatio": 0.8,
+    "fogStart": 50,
+    "fogEnd": 80
+  }
+}

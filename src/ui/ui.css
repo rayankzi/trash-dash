@@ -1,0 +1,605 @@
+/* ==========================================================================
+   Trash Dash — overlay UI
+   Chunky arcade look: deep-blue base, amber/gold accent, frosted panels.
+   ========================================================================== */
+
+:root {
+  --bg-deep-1: #0a1030;
+  --bg-deep-2: #050912;
+  --panel-bg: rgba(12, 19, 46, 0.74);
+  --panel-bg-soft: rgba(12, 19, 46, 0.45);
+  --panel-border: rgba(255, 255, 255, 0.1);
+  --panel-highlight: rgba(255, 255, 255, 0.06);
+  --accent: #f5a623;
+  --accent-light: #ffd75e;
+  --accent-dark: #b9740f;
+  --danger: #ff5a5a;
+  --good: #4fd06c;
+  --good-dark: #2f8e46;
+  --ink: #ffffff;
+  --ink-dim: rgba(255, 255, 255, 0.78);
+  --ink-faint: rgba(255, 255, 255, 0.6);
+  --radius-lg: clamp(14px, 3vw, 22px);
+  --radius-md: 14px;
+  --radius-sm: 10px;
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  overflow: hidden;
+  height: 100%;
+  background: radial-gradient(ellipse at 50% 0%, var(--bg-deep-1) 0%, var(--bg-deep-2) 70%);
+  font-family: 'Luckiest Guy', ui-rounded, 'SF Pro Rounded', 'Segoe UI', Verdana, system-ui, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#game-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+#ui-root {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  color: var(--ink);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5), 0 1px 6px rgba(0, 0, 0, 0.35);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- buttons -------------------------------------------------- */
+
+#ui-root button {
+  pointer-events: auto;
+  font-family: inherit;
+  font-size: clamp(1rem, 3vw, 1.35rem);
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  background: linear-gradient(180deg, var(--accent-light) 0%, var(--accent) 65%);
+  border: 3px solid rgba(255, 255, 255, 0.85);
+  border-radius: var(--radius-md);
+  padding: 0.6em 1.5em;
+  cursor: pointer;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.4);
+  box-shadow: 0 5px 0 var(--accent-dark), 0 8px 16px rgba(0, 0, 0, 0.35);
+  transition: transform 120ms var(--ease-out), box-shadow 120ms var(--ease-out), filter 120ms var(--ease-out);
+}
+
+#ui-root button:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 0 var(--accent-dark), 0 10px 18px rgba(0, 0, 0, 0.4);
+}
+
+#ui-root button:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 var(--accent-dark), 0 4px 8px rgba(0, 0, 0, 0.3);
+  filter: brightness(0.97);
+}
+
+#ui-root button:focus-visible {
+  outline: none;
+  box-shadow: 0 5px 0 var(--accent-dark), 0 0 0 3px rgba(255, 215, 94, 0.65), 0 8px 16px rgba(0, 0, 0, 0.35);
+}
+
+#ui-root button:disabled {
+  cursor: default;
+  filter: grayscale(0.35) brightness(0.85);
+  opacity: 0.75;
+}
+
+#ui-root button.ghost {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--accent-light);
+  border: 3px solid rgba(255, 215, 94, 0.55);
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.35), 0 8px 14px rgba(0, 0, 0, 0.3);
+}
+
+#ui-root button.ghost:hover:not(:disabled) {
+  background: rgba(255, 215, 94, 0.1);
+}
+
+#ui-root button.ghost:active:not(:disabled) {
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+#ui-root button.claim-btn {
+  font-size: clamp(0.85rem, 2.6vw, 1rem);
+  background: linear-gradient(180deg, #6fe089 0%, var(--good) 65%);
+  border-color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 5px 0 var(--good-dark), 0 8px 14px rgba(0, 0, 0, 0.35);
+  margin: 4px;
+}
+
+#ui-root button.claim-btn:active:not(:disabled) {
+  box-shadow: 0 2px 0 var(--good-dark);
+}
+
+/* ---------- HUD -------------------------------------------------------- */
+
+.hud {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
+
+.hud.visible {
+  display: block;
+}
+
+.hud-top {
+  position: absolute;
+  top: clamp(52px, 14vw, 60px);
+  left: 14px;
+  right: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  font-size: clamp(1.05rem, 4vw, 1.5rem);
+  gap: 10px;
+}
+
+.hud-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.hud-lives {
+  color: var(--danger);
+  letter-spacing: 3px;
+  font-size: clamp(1rem, 3.6vw, 1.3rem);
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.5));
+}
+
+.hud-wallet {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel-bg-soft);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 2px 12px;
+  backdrop-filter: blur(6px);
+}
+
+.hud-coins {
+  color: var(--accent-light);
+  font-size: clamp(0.95rem, 3.4vw, 1.2rem);
+  white-space: nowrap;
+}
+
+.hud-premium {
+  color: #b7e3ff;
+  font-size: clamp(0.9rem, 3.2vw, 1.1rem);
+  white-space: nowrap;
+}
+
+.hud-score {
+  text-align: right;
+  line-height: 1.15;
+}
+
+.hud-score .score {
+  font-size: clamp(1.7rem, 6.5vw, 2.4rem);
+  color: var(--ink);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55), 0 0 18px rgba(245, 166, 35, 0.35);
+}
+
+.hud-multiplier {
+  font-size: clamp(0.95rem, 3.2vw, 1.15rem);
+  color: var(--accent-light);
+  font-weight: 700;
+}
+
+.hud-distance {
+  font-size: clamp(0.85rem, 2.8vw, 1rem);
+  color: var(--ink-dim);
+}
+
+/* Small round pause control, tucked above the score so it never collides. */
+.pause-button {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  width: clamp(36px, 9vw, 44px);
+  height: clamp(36px, 9vw, 44px);
+  padding: 0 !important;
+  border-radius: 50% !important;
+  font-size: clamp(0.85rem, 2.6vw, 1rem) !important;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 0 var(--accent-dark), 0 6px 12px rgba(0, 0, 0, 0.35) !important;
+}
+
+.pause-button:active:not(:disabled) {
+  box-shadow: 0 1px 0 var(--accent-dark) !important;
+}
+
+.powerup-zone {
+  position: absolute;
+  top: clamp(112px, 26vw, 130px);
+  left: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 46vw;
+}
+
+.powerup-chip {
+  background: var(--panel-bg-soft);
+  backdrop-filter: blur(6px);
+  border: 2px solid var(--accent-light);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  font-size: clamp(0.8rem, 2.8vw, 0.95rem);
+  color: var(--accent-light);
+  width: max-content;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+}
+
+.hint {
+  position: absolute;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  left: 8px;
+  right: 8px;
+  text-align: center;
+  font-size: clamp(0.75rem, 2.6vw, 0.95rem);
+  color: var(--ink-faint);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* ---------- countdown ---------------------------------------------------
+   Big impactful number, centered, pop-in scale animation restarted on
+   every tick via the .tick class being re-added by UI.ts. */
+
+.countdown {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(5rem, 24vw, 9rem);
+  color: var(--accent-light);
+  text-shadow: 0 4px 0 rgba(0, 0, 0, 0.5), 0 0 40px rgba(255, 215, 94, 0.55);
+  pointer-events: none;
+}
+
+.countdown.tick {
+  animation: countdown-pop 420ms var(--ease-pop);
+}
+
+@keyframes countdown-pop {
+  0% {
+    transform: scale(0.35);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ---------- damage flash -------------------------------------------------
+   Red screen-edge vignette pulse, re-triggered via .active being
+   removed/re-added by UI.ts on every hit. */
+
+.damage-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 20, 40, 0) 45%,
+    rgba(255, 20, 40, 0.35) 78%,
+    rgba(255, 10, 30, 0.6) 100%
+  );
+}
+
+.damage-flash.active {
+  animation: damage-pulse 450ms ease-out;
+}
+
+@keyframes damage-pulse {
+  0% {
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ---------- screens & panels --------------------------------------------- */
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.8rem, 2.5vw, 1.2rem);
+  background: rgba(5, 9, 20, 0.6);
+  backdrop-filter: blur(4px);
+  padding: 16px;
+}
+
+.screen.visible {
+  display: flex;
+  pointer-events: auto;
+  animation: screen-fade-in 200ms var(--ease-out) both;
+}
+
+/* Pause keeps the HUD visible behind it, so dim the backdrop less. */
+.screen.pause.visible {
+  background: rgba(5, 9, 20, 0.4);
+}
+
+@keyframes screen-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.panel {
+  width: 100%;
+  max-width: min(92vw, 440px);
+  max-height: min(88vh, 720px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(0.6rem, 2vw, 1rem);
+  background: var(--panel-bg);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  padding: clamp(1.1rem, 4vw, 1.8rem) clamp(1.2rem, 5vw, 2.2rem);
+  box-shadow:
+    inset 0 1px 0 var(--panel-highlight),
+    0 18px 40px rgba(0, 0, 0, 0.5),
+    0 4px 0 rgba(0, 0, 0, 0.25);
+  text-align: center;
+}
+
+.screen.visible .panel {
+  animation: panel-pop-in 260ms var(--ease-pop) both;
+  animation-delay: 40ms;
+}
+
+@keyframes panel-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.screen h1 {
+  font-size: clamp(1.9rem, 8vw, 3.2rem);
+  color: var(--accent-light);
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.5), 0 0 24px rgba(255, 215, 94, 0.3);
+  line-height: 1;
+}
+
+.screen .big-score {
+  font-size: clamp(1.6rem, 6vw, 2.4rem);
+  color: var(--accent-light);
+}
+
+.screen .stats,
+.pause-stats {
+  font-size: clamp(0.95rem, 3.2vw, 1.15rem);
+  color: var(--ink-dim);
+  text-align: center;
+  line-height: 1.7;
+}
+
+/* ---------- pickers / missions / leaderboard ----------------------------- */
+
+.pickers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: clamp(1rem, 4vw, 2rem);
+  width: 100%;
+}
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: center;
+  min-width: 120px;
+}
+
+.picker-title {
+  font-size: clamp(0.95rem, 3vw, 1.1rem);
+  color: var(--accent-light);
+  letter-spacing: 0.02em;
+}
+
+#ui-root button.picker-option {
+  font-size: clamp(0.85rem, 2.8vw, 1rem);
+  padding: 0.45em 1.1em;
+  background: var(--panel-bg-soft);
+  color: var(--ink);
+  border: 2px solid var(--panel-border);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
+}
+
+#ui-root button.picker-option:hover:not(:disabled) {
+  filter: none;
+  border-color: rgba(255, 215, 94, 0.5);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+#ui-root button.picker-option.selected {
+  background: linear-gradient(180deg, var(--accent-light) 0%, var(--accent) 65%);
+  color: #241400;
+  border-color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 3px 0 var(--accent-dark);
+  text-shadow: none;
+}
+
+.picker-option .sub,
+.mission-row .sub {
+  display: block;
+  font-size: 0.8em;
+  opacity: 0.85;
+  margin-top: 2px;
+}
+
+.wallet {
+  font-size: clamp(1rem, 3.4vw, 1.15rem);
+  color: var(--accent-light);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.missions-list,
+.leaderboard {
+  width: 100%;
+  text-align: center;
+  font-size: clamp(0.85rem, 2.8vw, 0.95rem);
+  line-height: 1.6;
+  max-height: 30vh;
+  overflow-y: auto;
+}
+
+.mission-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.mission-row:last-child {
+  border-bottom: none;
+}
+
+.mission-claims {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  max-width: 100%;
+}
+
+/* ---------- reduced motion ------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- small / short viewports -------------------------------------- */
+
+@media (max-width: 380px) {
+  .hud-top {
+    top: 50px;
+    left: 10px;
+    right: 10px;
+  }
+
+  .powerup-zone {
+    top: 104px;
+    left: 10px;
+    max-width: 52vw;
+  }
+
+  .panel {
+    padding: 1rem 1.1rem;
+    border-radius: var(--radius-md);
+    gap: 0.6rem;
+  }
+
+  .pickers {
+    gap: 0.75rem;
+  }
+}
+
+@media (max-height: 480px) and (orientation: landscape) {
+  .hud-top {
+    top: 8px;
+  }
+
+  .pause-button {
+    top: 8px;
+  }
+
+  .powerup-zone {
+    top: 8px;
+    left: auto;
+    right: 14px;
+    align-items: flex-end;
+  }
+
+  .hint {
+    display: none;
+  }
+
+  .screen {
+    padding: 8px;
+  }
+
+  .panel {
+    max-height: 94vh;
+    padding: 0.8rem 1.2rem;
+    gap: 0.5rem;
+  }
+
+  .screen h1 {
+    font-size: clamp(1.4rem, 6vw, 2rem);
+  }
+
+  .missions-list,
+  .leaderboard {
+    max-height: 20vh;
+  }
+
+  .countdown {
+    font-size: clamp(3.5rem, 18vw, 6rem);
+  }
+}
