@@ -11,12 +11,13 @@
     "test:watch": "vitest",
     "test:visual": "playwright test",
     "test:visual:update": "playwright test --update-snapshots",
-    "assets": "npm run assets:textures && npm run assets:models && npm run assets:segments && npm run assets:manifest && npm run assets:audio && npm run assets:validate",
+    "assets": "npm run assets:textures && npm run assets:models && npm run assets:segments && npm run assets:manifest && npm run assets:audio && npm run assets:icons && npm run assets:validate",
     "assets:textures": "node tools/convert-textures.mjs",
     "assets:models": "node tools/convert-models.mjs",
     "assets:segments": "node tools/extract-segments.mjs",
     "assets:manifest": "node tools/build-manifest.mjs",
     "assets:audio": "node tools/copy-audio-fonts.mjs",
+    "assets:icons": "node tools/extract-ui-icons.mjs",
     "assets:validate": "node tools/validate-assets.mjs"
   },
   "devDependencies": {

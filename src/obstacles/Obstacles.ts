@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { assets, type PrefabNode } from '../core/AssetManager';
-import { TrackSegment } from '../track/TrackSegment';
+import type { TrackSegment } from '../track/TrackSegment';
 import { LANE_OFFSET, MISSILE_SPEED } from '../core/consts';
 import { makeCurvedMaterial } from '../rendering/CurvedMaterial';
 import obstaclesJson from '../data/obstacles.json';
@@ -90,15 +90,9 @@ function hasMesh(object: THREE.Object3D): boolean {
   return found;
 }
 
-function buildRat(theme: string): THREE.Object3D {
-  const source = assets.getLoadedModel('models/Rat');
-  if (!source) return new THREE.Group();
-  const root = new THREE.Group();
-  const rat = cloneSkinned(source);
-  rat.rotation.y = -Math.PI / 2;
+/** Skin the rat for the theme and loop its run cycle (ticked by the segment). */
+function withRatRunCycle(root: THREE.Object3D, rat: THREE.Object3D, theme: string): THREE.Object3D {
   assets.applyMaterials(rat, [theme === 'night' ? 'RatNight' : 'Rat']);
-  root.add(rat);
-
   const clip = assets.getAnimations('anim/Rat_Run')[0];
   if (clip) {
     const mixer = new THREE.AnimationMixer(rat);
@@ -106,6 +100,16 @@ function buildRat(theme: string): THREE.Object3D {
     root.userData.animationMixer = mixer;
   }
   return root;
+}
+
+function buildRat(theme: string): THREE.Object3D {
+  const source = assets.getLoadedModel('models/Rat');
+  if (!source) return new THREE.Group();
+  const root = new THREE.Group();
+  const rat = cloneSkinned(source);
+  rat.rotation.y = -Math.PI / 2;
+  root.add(rat);
+  return withRatRunCycle(root, rat, theme);
 }
 
 function buildRoadworksBarrier(theme: string): THREE.Object3D {
@@ -171,16 +175,7 @@ function buildVisual(def: ObstacleDef, name: string, theme: string): THREE.Objec
   }
   const extracted = assets.instantiateTree(def.root);
   if (hasMesh(extracted)) {
-    if (name === 'ObstacleRat') {
-      assets.applyMaterials(extracted, [theme === 'night' ? 'RatNight' : 'Rat']);
-      const clip = assets.getAnimations('anim/Rat_Run')[0];
-      if (clip) {
-        const mixer = new THREE.AnimationMixer(extracted);
-        mixer.clipAction(clip).play();
-        extracted.userData.animationMixer = mixer;
-      }
-    }
-    return extracted;
+    return name === 'ObstacleRat' ? withRatRunCycle(extracted, extracted, theme) : extracted;
   }
   if (name === 'ObstacleRat') return buildRat(theme);
   if (name === 'ObstacleRoadworksBarrier') return buildRoadworksBarrier(theme);
@@ -294,10 +289,3 @@ export function spawnObstacle(
     }
   }
 }
-
-declare module '../track/TrackSegment' {
-  interface TrackSegment {
-    playerNearby: boolean;
-  }
-}
-TrackSegment.prototype.playerNearby = false;

@@ -31,6 +31,8 @@ export class TrackSegment {
   readonly objectRoot: THREE.Group; // inverse-scaled child holding obstacles/coins
   private pathWorld: { pos: THREE.Vector3; rot: THREE.Quaternion }[] = [];
   worldLength = 0;
+  /** True while the runner is on this segment or the next; gates obstacle ticks. */
+  playerNearby = false;
 
   /** Obstacles/coins register their AABBs here for collision. */
   readonly colliders: {

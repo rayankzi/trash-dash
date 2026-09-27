@@ -16,6 +16,8 @@ const CLIPS: Record<string, string> = {
 
 export interface CharacterDef {
   name: string;
+  /** Portrait under assets/ui/icons. */
+  icon: string;
   model: string;
   material: string;
   cost: number;
@@ -27,6 +29,7 @@ export interface CharacterDef {
 export const CHARACTERS: Record<string, CharacterDef> = {
   Cat: {
     name: 'Trash Cat',
+    icon: 'cat',
     model: 'models/Cat',
     material: 'CatOrange',
     cost: 0,
@@ -35,6 +38,7 @@ export const CHARACTERS: Record<string, CharacterDef> = {
   },
   Raccoon: {
     name: 'Rubbish Raccoon',
+    icon: 'raccoon',
     model: 'models/Racoon',
     material: 'Racoon',
     cost: 50000,
@@ -61,7 +65,7 @@ export class Character {
       if (def.accessories.includes(child.name)) child.visible = false;
       if (child instanceof THREE.Mesh) child.frustumCulled = false;
     });
-    assets.applyMaterials(newRoot, [def.material], true);
+    assets.applyMaterials(newRoot, [def.material]);
     if (this.root) this.root.removeFromParent();
     this.root = newRoot;
 
@@ -101,14 +105,6 @@ export class Character {
     action.play();
     this.current = name;
     return action;
-  }
-
-  onceFinished(callback: () => void): void {
-    const handler = () => {
-      this.mixer.removeEventListener('finished', handler);
-      callback();
-    };
-    this.mixer.addEventListener('finished', handler);
   }
 
   update(dt: number): void {

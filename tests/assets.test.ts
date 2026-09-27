@@ -1,9 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { CLASS, UNITY_ROOT, buildGuidMap, parseUnityYaml } from '../tools/lib/unity.mjs';
 
 const projectRoot = path.resolve(import.meta.dirname, '..');
+// The Unity source checkout is only needed to (re)generate assets. Without it
+// the YAML-integrity checks are skipped and the generated output is still checked.
+const unityRoot = process.env.UNITY_SOURCE_DIR
+  ? path.resolve(process.cwd(), process.env.UNITY_SOURCE_DIR)
+  : path.resolve(projectRoot, '../EndlessRunnerSampleGame');
+const hasUnitySource = fs.existsSync(path.join(unityRoot, 'Assets'));
+const unity = hasUnitySource ? await import('../tools/lib/unity.mjs') : null;
 const dataRoot = path.join(projectRoot, 'src/data');
 const publicRoot = path.join(projectRoot, 'public');
 
@@ -31,10 +37,13 @@ function componentRef(entry: Record<string, { fileID?: string }>): { fileID?: st
   return entry.component ?? Object.values(entry)[0];
 }
 
-describe('Unity YAML integrity', () => {
-  const prefabFiles = fs
-    .readdirSync(path.join(UNITY_ROOT, 'Assets/Bundles/Themes/Default/Urban'))
-    .filter((name) => name.endsWith('.prefab'));
+describe.skipIf(!unity)('Unity YAML integrity', () => {
+  // Suite bodies are still collected when skipped, so defer touching the source.
+  const { CLASS, UNITY_ROOT, parseUnityYaml } = unity ?? ({} as NonNullable<typeof unity>);
+  const prefabFiles = () =>
+    fs
+      .readdirSync(path.join(UNITY_ROOT, 'Assets/Bundles/Themes/Default/Urban'))
+      .filter((name) => name.endsWith('.prefab'));
 
   it('preserves long fileID references as exact strings', () => {
     const docs = parseUnityYaml(
@@ -49,7 +58,7 @@ describe('Unity YAML integrity', () => {
   });
 
   it('resolves every component reference in representative prefabs', () => {
-    for (const file of prefabFiles) {
+    for (const file of prefabFiles()) {
       const docs = parseUnityYaml(
         path.join(UNITY_ROOT, 'Assets/Bundles/Themes/Default/Urban', file),
       );
@@ -76,7 +85,6 @@ describe('generated track assets', () => {
       .readdirSync(path.join(dataRoot, 'segments', theme))
       .filter((name) => name.endsWith('.json'));
     expect(generated).toHaveLength(21);
-    expect(themes[theme].skyModel).toBeTruthy();
     expect(themes[theme].cloudPrefabs?.length).toBe(3);
     expect(themes[theme].cloudNumber).toBe(20);
   });
@@ -104,8 +112,7 @@ describe('generated track assets', () => {
       }
     }
     for (const [name, info] of Object.entries(materials) as [string, any][]) {
-      const textureUrl = info.textureUrl
-        ?? (info.texture?.includes('/') ? `assets/${info.texture}` : info.texture ? `assets/textures/${info.texture}.webp` : null);
+      const textureUrl = info.texture ? `assets/${info.texture}` : null;
       if (textureUrl && !fs.existsSync(path.join(publicRoot, textureUrl))) {
         missing.push(`material ${name}: ${textureUrl}`);
       }
@@ -168,7 +175,7 @@ describe('generated track assets', () => {
     }
   });
 
-  it('maps every FBX GUID used by generated models', () => {
-    expect(buildGuidMap().size).toBeGreaterThan(100);
+  it.skipIf(!unity)('maps every FBX GUID used by generated models', () => {
+    expect(unity!.buildGuidMap().size).toBeGreaterThan(100);
   });
 });

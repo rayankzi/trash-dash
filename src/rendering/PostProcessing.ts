@@ -48,7 +48,9 @@ export const GRADES: Record<string, GradeSettings> = {
 
 /**
  * Final colour grade: vignette, saturation, contrast and a per-theme lift,
- * applied after bloom so the glow is graded with everything else.
+ * applied after bloom so the glow is graded with everything else. Also draws
+ * the speed lines that streak in from the frame edges near top speed, and the
+ * red damage flash.
  */
 const GradeShader = {
   uniforms: {
@@ -59,6 +61,9 @@ const GradeShader = {
     uLift: { value: new THREE.Vector3(1, 1, 1) },
     uExposure: { value: 1 },
     uFlash: { value: 0 },
+    uSpeed: { value: 0 },
+    uTime: { value: 0 },
+    uAspect: { value: 1 },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -74,8 +79,31 @@ const GradeShader = {
     uniform float uContrast;
     uniform float uFlash;
     uniform float uExposure;
+    uniform float uSpeed;
+    uniform float uTime;
+    uniform float uAspect;
     uniform vec3 uLift;
     varying vec2 vUv;
+
+    float hash(float n) { return fract(sin(n) * 43758.5453123); }
+
+    // Thin radial streaks racing outward from the centre, confined to the
+    // frame edges so the track itself stays clean.
+    float speedLines(vec2 uv) {
+      vec2 p = (uv - 0.5) * vec2(uAspect, 1.0);
+      float radius = length(p);
+      float angle = atan(p.y, p.x) / 6.2831853 + 0.5;
+      float lanes = 110.0;
+      float cell = floor(angle * lanes);
+      float seed = hash(cell);
+      float across = abs(fract(angle * lanes) - 0.5) * 2.0;
+      float thin = 1.0 - smoothstep(0.0, 0.35, across);
+      float head = fract(seed * 13.0 + uTime * (0.9 + seed * 1.2));
+      float along = radius - (0.25 + head * 0.8);
+      float streak = smoothstep(-0.22, 0.0, along) * (1.0 - smoothstep(0.0, 0.02, along));
+      float edge = smoothstep(0.28, 0.62, radius);
+      return step(0.72, seed) * thin * streak * edge;
+    }
 
     void main() {
       vec4 texel = texture2D(tDiffuse, vUv);
@@ -89,6 +117,8 @@ const GradeShader = {
       vec2 offset = vUv - 0.5;
       float radius = dot(offset, offset);
       color *= 1.0 - uVignette * smoothstep(0.12, 0.75, radius);
+
+      color += vec3(1.0) * speedLines(vUv) * uSpeed * 0.22;
 
       // Damage flash tints the frame edges red without hiding the track.
       color = mix(color, vec3(0.85, 0.12, 0.12), uFlash * smoothstep(0.05, 0.6, radius));
@@ -159,6 +189,7 @@ export class PostProcessing {
     // This sizes every pass, the bloom included, at drawing-buffer resolution.
     // Re-sizing the bloom afterwards would only undo that.
     this.composer.setSize(width, height);
+    this.grade.uniforms.uAspect.value = width / Math.max(1, height);
   }
 
   /** Keep the composer's buffers in step when the renderer's ratio changes. */
@@ -166,7 +197,13 @@ export class PostProcessing {
     this.composer.setPixelRatio(pixelRatio);
   }
 
+  /** 0..1 intensity of the edge speed lines. */
+  setSpeed(amount: number): void {
+    this.grade.uniforms.uSpeed.value = amount;
+  }
+
   render(dt: number): void {
+    this.grade.uniforms.uTime.value += dt;
     if (this.flashTime > 0) {
       this.flashTime = Math.max(0, this.flashTime - dt);
       this.grade.uniforms.uFlash.value = Math.min(1, this.flashTime / 0.45) * 0.55;

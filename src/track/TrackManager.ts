@@ -24,28 +24,8 @@ import {
   PREMIUM_CHANCE_RATE,
   STARTING_SEGMENT_DISTANCE,
 } from '../core/consts';
-import themesJson from '../data/themes.json';
+import { THEMES, isThemeKey, type ThemeData, type ThemeKey } from '../data/themes';
 
-export interface ThemeData {
-  name: string;
-  fogColor: [number, number, number];
-  zones: { length: number; segments: string[] }[];
-  skyModel?: string;
-  skyTransform?: {
-    pos: [number, number, number];
-    rot: [number, number, number, number];
-    scale: [number, number, number];
-  };
-  cloudModels?: string[];
-  cloudPrefabs?: { name: string; root: import('../core/AssetManager').PrefabNode }[];
-  cloudMinimumDistance?: [number, number, number];
-  cloudSpread?: [number, number, number];
-  cloudNumber?: number;
-  fogStart?: number;
-  fogEnd?: number;
-  parallaxRatio?: number;
-}
-const THEMES = themesJson as unknown as Record<string, ThemeData>;
 
 export interface TrackManagerOptions {
   random?: () => number;
@@ -66,6 +46,11 @@ function segmentData(theme: string, name: string): SegmentData | undefined {
 const tmpPos = new THREE.Vector3();
 const tmpRot = new THREE.Quaternion();
 const right = new THREE.Vector3();
+const travelDelta = new THREE.Vector3();
+const recenterOffset = new THREE.Vector3();
+const COIN_BOX_SIZE = new THREE.Vector3(0.8, 0.8, 0.8);
+/** Street length stitched on behind the start line for the menu camera. */
+const BACKDROP_LENGTH = 45;
 
 /**
  * Port of TrackManager.cs: owns speed/score, the rolling segment queue,
@@ -84,7 +69,7 @@ export class TrackManager {
   modifyMultiply: ((m: number) => number)[] = [];
 
   private theme: ThemeData = THEMES.day;
-  private themeKey = 'day';
+  private themeKey: ThemeKey = 'day';
   private currentZone = 0;
   private zoneDistance = 0;
   private segments: TrackSegment[] = [];
@@ -118,7 +103,7 @@ export class TrackManager {
   }
 
   async begin(themeKey: string): Promise<void> {
-    this.themeKey = THEMES[themeKey] ? themeKey : 'day';
+    this.themeKey = isThemeKey(themeKey) ? themeKey : 'day';
     this.theme = THEMES[this.themeKey];
     await preloadObstacles(this.themeKey);
     // Preload every segment model of the theme up front (day theme is ~4MB of GLB).
@@ -154,10 +139,12 @@ export class TrackManager {
     this.characterRoot.position.set(0, 0, 0);
     this.characterRoot.quaternion.identity();
     while (this.segments.length < DESIRED_SEGMENT_COUNT) this.spawnNewSegment();
+    this.spawnBackdrop();
     this.segments[0]?.getPointAtInWorldUnit(this.currentSegmentDistance, tmpPos, tmpRot);
     this.characterRoot.position.copy(tmpPos);
     this.characterRoot.quaternion.copy(tmpRot);
     this.characterRoot.updateMatrixWorld(true);
+    coinPool.sync();
     this.events.dispatchEvent(new CustomEvent('reset', { detail: { position: tmpPos.clone() } }));
   }
 
@@ -201,26 +188,24 @@ export class TrackManager {
       if (this.segments.length > 1) this.segments[1].playerNearby = true;
     }
 
-    const previousPosition = this.characterRoot.position.clone();
     this.segments[0].getPointAtInWorldUnit(this.currentSegmentDistance, tmpPos, tmpRot);
-    const travelDelta = tmpPos.clone().sub(previousPosition);
-    const recenterOffset = new THREE.Vector3();
+    travelDelta.subVectors(tmpPos, this.characterRoot.position);
+    recenterOffset.set(0, 0, 0);
 
     // Floating origin: recentre the world when the character strays too far.
     if (tmpPos.lengthSq() > FLOATING_ORIGIN_THRESHOLD_SQ) {
-      const offset = tmpPos.clone().negate();
-      recenterOffset.copy(offset);
-      for (const s of this.segments) s.translate(offset);
-      for (const s of this.pastSegments) s.translate(offset);
-      coinPool.translateActive(offset);
+      recenterOffset.copy(tmpPos).negate();
+      for (const s of this.segments) s.translate(recenterOffset);
+      for (const s of this.pastSegments) s.translate(recenterOffset);
+      coinPool.translateActive(recenterOffset);
       this.segments[0].getPointAtInWorldUnit(this.currentSegmentDistance, tmpPos, tmpRot);
-      this.events.dispatchEvent(new CustomEvent('recenter', { detail: { offset: offset.clone() } }));
+      this.events.dispatchEvent(new CustomEvent('recenter', { detail: { offset: recenterOffset.clone() } }));
     }
 
     this.characterRoot.position.copy(tmpPos);
     this.characterRoot.quaternion.copy(tmpRot);
     this.events.dispatchEvent(
-      new CustomEvent('runnerMoved', { detail: { travelDelta, recenterOffset, position: tmpPos.clone() } })
+      new CustomEvent('runnerMoved', { detail: { travelDelta, recenterOffset, position: tmpPos } })
     );
 
     // Retire segments far behind the player.
@@ -289,6 +274,47 @@ export class TrackManager {
     this.spawnCoins(segment);
 
     this.segments.push(segment);
+  }
+
+  /**
+   * The menu camera looks back down the street at the runner, which starts
+   * only a couple of units into the first segment. Stitch obstacle-free
+   * segments on *behind* the start so that view has scenery all the way into
+   * the fog; they sit in `pastSegments` and retire as soon as the run leaves
+   * them behind.
+   */
+  private spawnBackdrop(): void {
+    const first = this.segments[0];
+    if (!first) return;
+    const list = this.theme.zones[0].segments;
+    const entryPos = new THREE.Vector3();
+    const entryRot = new THREE.Quaternion();
+    const exitPos = new THREE.Vector3();
+    const exitRot = new THREE.Quaternion();
+    first.getPointAt(0, entryPos, entryRot);
+
+    let covered = 0;
+    while (covered < BACKDROP_LENGTH) {
+      const name = this.options.segment && segmentData(this.themeKey, this.options.segment)
+        ? this.options.segment
+        : list[Math.floor(this.random() * list.length)];
+      const data = segmentData(this.themeKey, name);
+      if (!data) return;
+      const segment = new TrackSegment(data);
+      this.scene.add(segment.group);
+      // Rotate so this segment's exit heading matches the next one's entry,
+      // then translate its exit onto that entry point.
+      segment.updatePath();
+      segment.getPointAt(1, exitPos, exitRot);
+      segment.group.quaternion.copy(entryRot).multiply(exitRot.invert());
+      segment.updatePath();
+      segment.getPointAt(1, exitPos, exitRot);
+      segment.group.position.add(entryPos.clone().sub(exitPos));
+      segment.updatePath();
+      this.pastSegments.push(segment);
+      covered += segment.worldLength;
+      segment.getPointAt(0, entryPos, entryRot);
+    }
   }
 
   private changeZone(): void {
@@ -373,7 +399,7 @@ export class TrackManager {
           pos.y += 0.5;
           const coin = coinPool.get(pos, tmpRot);
           if (coin) {
-            const box = new THREE.Box3().setFromCenterAndSize(pos, new THREE.Vector3(0.8, 0.8, 0.8));
+            const box = new THREE.Box3().setFromCenterAndSize(pos, COIN_BOX_SIZE);
             segment.colliders.push({ box, kind: 'coin', obj: coin });
           }
         }

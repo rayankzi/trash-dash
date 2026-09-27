@@ -11,6 +11,13 @@ import {
   TRACK_SPEED_TO_JUMP_ANIM_RATIO,
 } from '../core/consts';
 
+/** A jump/slide pressed this long before landing still fires on touchdown. */
+const INPUT_BUFFER_SECONDS = 0.18;
+/** Downward speed of a fast-fall (slide pressed mid-air), world units / s. */
+const FAST_FALL_SPEED = 14;
+/** Peak body lean while changing lanes, radians. */
+const LANE_LEAN = 0.22;
+
 /**
  * Port of CharacterInputController.cs: lane changes, jump and slide driven by
  * world distance, keyboard + swipe input. The TrackManager positions
@@ -28,6 +35,13 @@ export class CharacterController {
   inputEnabled = false;
   onJump: () => void = () => {};
   onSlide: () => void = () => {};
+  /** Touchdown after a jump or fast-fall. */
+  onLand: () => void = () => {};
+  onLaneChange: () => void = () => {};
+  private buffered: 'jump' | 'slide' | null = null;
+  private bufferTime = 0;
+  private fastFalling = false;
+  private lean = 0;
 
   private cleanupInput: (() => void)[] = [];
 
@@ -115,6 +129,10 @@ export class CharacterController {
     this.holder.position.set(0, 0, 0);
     this.isJumping = false;
     this.isSliding = false;
+    this.fastFalling = false;
+    this.buffered = null;
+    this.lean = 0;
+    this.character.root.rotation.set(0, 0, 0);
   }
 
   changeLane(direction: number): void {
@@ -122,10 +140,19 @@ export class CharacterController {
     if (target < 0 || target > 2) return;
     this.currentLane = target;
     this.targetPosition.x = (target - 1) * LANE_OFFSET;
+    this.onLaneChange();
+  }
+
+  private buffer(action: 'jump' | 'slide'): void {
+    this.buffered = action;
+    this.bufferTime = INPUT_BUFFER_SECONDS;
   }
 
   jump(): void {
-    if (this.isJumping) return;
+    if (this.isJumping || this.fastFalling) {
+      this.buffer('jump');
+      return;
+    }
     if (this.isSliding) this.stopSliding();
     this.isJumping = true;
     const tm = this.trackManager;
@@ -137,7 +164,19 @@ export class CharacterController {
   }
 
   slide(): void {
-    if (this.isJumping || this.isSliding) return;
+    if (this.isSliding) return;
+    if (this.isJumping) {
+      // Fast-fall: abandon the arc and drop straight into a slide.
+      this.isJumping = false;
+      this.fastFalling = true;
+      this.buffer('slide');
+      return;
+    }
+    if (this.fastFalling) return;
+    this.startSlide();
+  }
+
+  private startSlide(): void {
     this.isSliding = true;
     this.slideStart = this.trackManager.worldDistance;
     const correctSlideLength = SLIDE_LENGTH * (1 + this.trackManager.speedRatio);
@@ -148,7 +187,19 @@ export class CharacterController {
 
   private stopJumping(): void {
     this.isJumping = false;
-    this.character.play('run', 0.15);
+    this.land();
+  }
+
+  /** Touchdown: consume a buffered input, or fall back into the run cycle. */
+  private land(): void {
+    this.holder.position.y = 0;
+    this.fastFalling = false;
+    this.onLand();
+    const next = this.bufferTime > 0 ? this.buffered : null;
+    this.buffered = null;
+    if (next === 'jump') this.jump();
+    else if (next === 'slide') this.startSlide();
+    else this.character.play('run', 0.15);
   }
 
   private stopSliding(): void {
@@ -159,11 +210,25 @@ export class CharacterController {
   update(dt: number): void {
     const tm = this.trackManager;
 
+    this.bufferTime = Math.max(0, this.bufferTime - dt);
+
     // Lane: MoveTowards at laneChangeSpeed.
     const delta = this.targetPosition.x - this.holder.position.x;
     const maxStep = LANE_CHANGE_SPEED * dt;
     if (Math.abs(delta) <= maxStep) this.holder.position.x = this.targetPosition.x;
     else this.holder.position.x += Math.sign(delta) * maxStep;
+
+    // Bank into lane changes, easing back upright as the move completes.
+    const targetLean = THREE.MathUtils.clamp(delta / LANE_OFFSET, -1, 1) * LANE_LEAN;
+    this.lean += (targetLean - this.lean) * Math.min(1, dt * 16);
+    this.character.root.rotation.z = -this.lean;
+    this.character.root.rotation.y = this.lean * 0.6;
+
+    if (this.fastFalling) {
+      this.holder.position.y = Math.max(0, this.holder.position.y - FAST_FALL_SPEED * dt);
+      if (this.holder.position.y === 0) this.land();
+      return;
+    }
 
     // Jump: arc driven by world distance.
     if (this.isJumping) {

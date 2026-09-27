@@ -85,27 +85,29 @@ export class CharacterCollider {
           this.events.dispatchEvent(new CustomEvent('barrierJumped'));
         }
         if (!this.box.intersectsBox(c.box)) continue;
+        // Where it happened, for pickup / impact effects.
+        const position = c.box.getCenter(new THREE.Vector3());
         if (c.kind === 'coin') {
           coinPool.free(c.obj);
           segment.colliders.splice(i, 1);
           i--;
           this.coins++;
-          this.events.dispatchEvent(new CustomEvent('coin'));
+          this.events.dispatchEvent(new CustomEvent('coin', { detail: { position } }));
         } else if (c.kind === 'premium') {
           c.obj.removeFromParent();
           segment.colliders.splice(i, 1);
           i--;
           this.premium++;
-          this.events.dispatchEvent(new CustomEvent('premium'));
+          this.events.dispatchEvent(new CustomEvent('premium', { detail: { position } }));
         } else if (c.kind === 'powerup') {
           c.obj.removeFromParent();
           segment.colliders.splice(i, 1);
           i--;
-          this.events.dispatchEvent(new CustomEvent('powerup', { detail: c.data }));
+          this.events.dispatchEvent(new CustomEvent('powerup', { detail: { type: c.data, position } }));
         } else if (c.kind === 'obstacle') {
           if (this.invincible) continue;
           this.lives--;
-          this.events.dispatchEvent(new CustomEvent('hit', { detail: { obstacle: c.obj } }));
+          this.events.dispatchEvent(new CustomEvent('hit', { detail: { obstacle: c.obj, position: this.center.clone() } }));
           if (this.lives > 0) {
             this.setInvincible();
           } else {

@@ -31,7 +31,8 @@ export interface CurvedMaterialOptions {
   curved?: boolean;
   /** Defaults to false for transparent materials and true otherwise. */
   depthWrite?: boolean;
-  blinkable?: boolean;
+  /** Lit, rim-lit and blinkable: the runner's own shading model. */
+  character?: boolean;
   skinning?: boolean;
   /** Defaults to front-facing, matching Unity's culled shaders. */
   doubleSided?: boolean;
@@ -48,20 +49,80 @@ function installCurve(material: THREE.Material): void {
   };
 }
 
-function installBlink(material: THREE.Material): void {
+/**
+ * Shared lighting for the runner. The world is authored unlit with painted
+ * shading, which leaves the character reading as a flat cut-out against it.
+ * These uniforms give it a soft wrap-around key light, a coloured shadow side
+ * and a rim light so it pops off the street; `rimColor`/`rimBoost` double as
+ * the powerup tint (gold for x2, cyan for the shield...).
+ */
+export const characterLight = {
+  /** View-space direction *towards* the key light. */
+  keyDirection: { value: new THREE.Vector3(-0.45, 0.75, 0.5).normalize() },
+  lightColor: { value: new THREE.Color(1, 0.97, 0.92) },
+  shadowColor: { value: new THREE.Color(0.62, 0.6, 0.78) },
+  rimColor: { value: new THREE.Color(1, 0.95, 0.85) },
+  rimStrength: { value: 0.45 },
+  /** Extra, animated rim used by powerup feedback. */
+  rimBoost: { value: 0 },
+  rimBoostColor: { value: new THREE.Color(1, 0.8, 0.2) },
+};
+
+function installCharacterLighting(material: THREE.Material): void {
   const previousCompile = material.onBeforeCompile;
   material.onBeforeCompile = (shader, renderer) => {
     previousCompile.call(material, shader, renderer);
-    shader.uniforms.uBlinkingValue = globalBlink;
+    Object.assign(shader.uniforms, {
+      uBlinkingValue: globalBlink,
+      uKeyDirection: characterLight.keyDirection,
+      uLightColor: characterLight.lightColor,
+      uShadowColor: characterLight.shadowColor,
+      uRimColor: characterLight.rimColor,
+      uRimStrength: characterLight.rimStrength,
+      uRimBoost: characterLight.rimBoost,
+      uRimBoostColor: characterLight.rimBoostColor,
+    });
+    // MeshBasicMaterial only derives normals for skinning/env maps; force the
+    // normal chain on so the (skinned) character has view-space normals.
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vCharNormal;\nvarying vec3 vCharView;')
+      .replace('#if defined ( USE_ENVMAP ) || defined ( USE_SKINNING )', '#if 1')
+      .replace(
+        '#include <project_vertex>',
+        `#include <project_vertex>
+         vCharNormal = normalize(transformedNormal);
+         vCharView = -mvPosition.xyz;`
+      );
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uBlinkingValue;')
+      .replace(
+        '#include <common>',
+        `#include <common>
+         uniform float uBlinkingValue;
+         uniform vec3 uKeyDirection;
+         uniform vec3 uLightColor;
+         uniform vec3 uShadowColor;
+         uniform vec3 uRimColor;
+         uniform float uRimStrength;
+         uniform float uRimBoost;
+         uniform vec3 uRimBoostColor;
+         varying vec3 vCharNormal;
+         varying vec3 vCharView;`
+      )
       .replace(
         '#include <map_fragment>',
         `#include <map_fragment>
-         diffuseColor.rgb = clamp(
-           mix(diffuseColor.rgb, vec3(1.0, 1.0, 0.75), uBlinkingValue),
-           vec3(0.0), vec3(1.0)
-         );`
+         vec3 charN = normalize(vCharNormal);
+         if (!gl_FrontFacing) charN = -charN;
+         vec3 charV = normalize(vCharView);
+         // Half-Lambert wrap with a soft toon step: keeps the painted albedo
+         // readable while giving the silhouette a lit and a shadowed side.
+         float wrapLight = dot(charN, uKeyDirection) * 0.5 + 0.5;
+         float lit = smoothstep(0.28, 0.72, wrapLight);
+         diffuseColor.rgb *= mix(uShadowColor, uLightColor, lit);
+         float fresnel = pow(1.0 - clamp(dot(charN, charV), 0.0, 1.0), 3.0);
+         diffuseColor.rgb += fresnel * (uRimColor * uRimStrength * (0.35 + 0.65 * lit) + uRimBoostColor * uRimBoost);
+         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 1.0, 0.75), uBlinkingValue);
+         diffuseColor.rgb = clamp(diffuseColor.rgb, 0.0, 1.0);`
       );
   };
 }
@@ -86,10 +147,10 @@ export function makeCurvedMaterial(opts: CurvedMaterialOptions = {}): THREE.Mesh
   });
 
   if (curved) installCurve(material);
-  if (opts.blinkable) installBlink(material);
+  if (opts.character) installCharacterLighting(material);
 
   material.customProgramCacheKey = () =>
-    `trash-dash-basic:${curved ? 'curved' : 'flat'}:${opts.blinkable ? 'blink' : 'plain'}`;
+    `trash-dash-basic:${curved ? 'curved' : 'flat'}:${opts.character ? 'character' : 'plain'}`;
   return material;
 }
 
@@ -122,13 +183,16 @@ export function makeVertexColorMaterial(doubleSided = false): THREE.MeshBasicMat
   });
 }
 
-/** Unity's Unlit/UnlitBlinking: flat and flashes toward warm white. */
-export function makeBlinkingMaterial(
+/**
+ * Unity's Unlit/UnlitBlinking (the character family), upgraded with the
+ * shared character lighting. Still flashes toward warm white while blinking.
+ */
+export function makeCharacterMaterial(
   map: THREE.Texture | null,
   color: THREE.ColorRepresentation = 0xffffff,
   doubleSided = false
 ): THREE.MeshBasicMaterial {
-  return makeCurvedMaterial({ map, color, curved: false, blinkable: true, depthWrite: true, doubleSided });
+  return makeCurvedMaterial({ map, color, curved: false, character: true, depthWrite: true, doubleSided });
 }
 
 /**

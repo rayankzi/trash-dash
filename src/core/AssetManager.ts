@@ -3,7 +3,7 @@ import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import {
   isPlanarGeometry,
-  makeBlinkingMaterial,
+  makeCharacterMaterial,
   makeCurvedMaterial,
   makeStandardMaterial,
   makeVertexColorMaterial,
@@ -15,10 +15,8 @@ import materialsJson from '../data/materials.json';
 type MaterialInfo = {
   shader?: string;
   shaderFamily?: ShaderFamily | string;
-  /** Exact public-assets-relative URL in new data; basename in legacy data. */
+  /** Public-assets-relative URL, e.g. `textures/BinAlbedo.webp`. */
   texture?: string | null;
-  /** Accepted for manifests generated during the schema transition. */
-  textureUrl?: string | null;
   tint?: [number, number, number] | null;
 };
 
@@ -40,8 +38,6 @@ export interface PrefabNode {
   scale: [number, number, number];
   model?: string; // path under assets/models, no extension
   mesh?: MeshIdentity;
-  /** Compatibility for generators which expose the mesh name directly. */
-  meshName?: string;
   rendererEnabled?: boolean;
   /** Unity material slots in exact renderer order. */
   materials?: string[];
@@ -90,22 +86,9 @@ export class AssetManager {
     return this.models.get(path);
   }
 
-  private textureAssetUrl(reference: string): string {
-    // Absolute/data URLs are already loadable as-is.
-    if (/^(?:https?:|data:|blob:|\/)/i.test(reference)) return reference;
-
-    const normalized = reference.replace(/^\.\//, '').replace(/^assets\//, '');
-    // New extractor output is public-assets-relative and includes its actual
-    // extension (which may be png rather than webp).
-    if (normalized.includes('/') || /\.[a-z0-9]+$/i.test(normalized)) {
-      return `assets/${normalized}`;
-    }
-    // Backwards compatibility for the old basename-only materials manifest.
-    return `assets/textures/${normalized}.webp`;
-  }
-
+  /** `reference` is public-assets-relative with its extension (`textures/X.webp`). */
   getTexture(reference: string): THREE.Texture {
-    const url = this.textureAssetUrl(reference);
+    const url = `assets/${reference}`;
     let texture = this.textures.get(url);
     if (!texture) {
       texture = this.texLoader.load(url);
@@ -125,8 +108,7 @@ export class AssetManager {
   } {
     const info = MATERIALS[name];
     const family = normalizeShaderFamily(info?.shaderFamily ?? info?.shader);
-    const textureRef = info?.textureUrl ?? info?.texture;
-    const texture = textureRef ? this.getTexture(textureRef) : null;
+    const texture = info?.texture ? this.getTexture(info.texture) : null;
 
     // The custom Unity unlit shaders do not declare or consume `_Color`; they
     // sample the texture and multiply only by baked vertex colour. `_Color`
@@ -142,17 +124,13 @@ export class AssetManager {
    * because the same Unity material is shared between flat wall panels and
    * closed building volumes.
    */
-  getMaterial(unityMatName: string, blinkable = false, doubleSided = false): THREE.Material {
-    const key = `${unityMatName}:${blinkable ? 1 : 0}:${doubleSided ? 1 : 0}`;
+  getMaterial(unityMatName: string, doubleSided = false): THREE.Material {
+    const key = `${unityMatName}:${doubleSided ? 1 : 0}`;
     let material = this.materialCache.get(key);
     if (material) return material;
 
     const { info, family, texture, color } = this.materialInfo(unityMatName);
-    // Explicit character blinking is authoritative during transition from the
-    // legacy manifest, whose material shader metadata was sometimes absent.
-    const dispatchedFamily: ShaderFamily = blinkable ? 'blinking' : family;
-
-    switch (dispatchedFamily) {
+    switch (family) {
       case 'curvedAlpha':
         material = makeCurvedMaterial({
           map: texture,
@@ -173,7 +151,7 @@ export class AssetManager {
         });
         break;
       case 'blinking':
-        material = makeBlinkingMaterial(texture, color, doubleSided);
+        material = makeCharacterMaterial(texture, color, doubleSided);
         break;
       case 'vertexColor':
         material = makeVertexColorMaterial(doubleSided);
@@ -187,14 +165,14 @@ export class AssetManager {
     }
 
     material.name = unityMatName;
-    material.userData.shaderFamily = dispatchedFamily;
+    material.userData.shaderFamily = family;
     material.userData.sourceShader = info?.shader;
     this.materialCache.set(key, material);
     return material;
   }
 
   /** Replace loaded GLB materials while preserving Unity's ordered slots. */
-  applyMaterials(obj: THREE.Object3D, unityMaterials: string[] | undefined, blinkable = false): void {
+  applyMaterials(obj: THREE.Object3D, unityMaterials: string[] | undefined): void {
     // FBX2glTF represents a Unity mesh with multiple material slots in either
     // of two ways: one Three mesh with geometry groups, or one child mesh per
     // glTF primitive. Preserve the converter's original material name when it
@@ -230,15 +208,13 @@ export class AssetManager {
           });
         }
 
-        const slots = assignedNames.map((name) => this.getMaterial(name, blinkable, flat));
+        const slots = assignedNames.map((name) => this.getMaterial(name, flat));
         child.material = Array.isArray(child.material) || child.geometry.groups.length > 1
           ? slots
           : slots[0];
         if (slots.some((slot) => slot.userData.shaderFamily === 'curvedCloud')) {
           child.renderOrder = -1;
         }
-      } else if (blinkable) {
-        child.material = makeBlinkingMaterial(null, 0xffffff, flat);
       } else {
         // Missing metadata is kept visible and follows the curved-world path.
         child.material = makeCurvedMaterial({ vertexColors: hasVertexColor, doubleSided: flat });
@@ -277,22 +253,15 @@ export class AssetManager {
     root.traverse((child) => {
       if (child instanceof THREE.Mesh) meshes.push(child);
     });
-    if (!node.mesh && !node.meshName) return;
+    if (!node.mesh) return;
 
-    // Prefer an exact Unity fileID stored in future converter metadata, then
-    // an explicit extracted name. The FBX asset basename is a useful final
-    // fallback for the current converter, which commonly uses it as node name.
-    const byFileID = node.mesh
-      ? meshes.filter((mesh) => {
-          const id = mesh.userData.unityFileID ?? mesh.userData.fileID;
-          return id !== undefined && String(id) === node.mesh?.fileID;
-        })
-      : [];
-    const assetName = node.mesh?.asset
+    // Match the extracted mesh name, falling back to the FBX asset basename,
+    // which the converter commonly uses as the node name.
+    const assetName = node.mesh.asset
       .split(/[\\/]/)
       .pop()
       ?.replace(/\.[^.]+$/, '');
-    const requestedNames = [node.meshName, node.mesh?.name, assetName].filter(
+    const requestedNames = [node.mesh.name, assetName].filter(
       (name): name is string => !!name
     );
     const byName = requestedNames.flatMap((requestedName) => {
@@ -302,7 +271,7 @@ export class AssetManager {
         (mesh) => mesh.name.toLocaleLowerCase() === requestedName.toLocaleLowerCase()
       );
     });
-    const selected = byFileID.length ? byFileID : [...new Set(byName)];
+    const selected = [...new Set(byName)];
     // A failed name match should not make the renderer silently disappear.
     // Extraction validation owns unresolved-reference failures.
     if (!selected.length) return;
@@ -329,7 +298,7 @@ export class AssetManager {
     }
     for (const [model, parts] of [...byModel]) {
       const meshNames = new Set(
-        parts.map((p) => p.meshName ?? p.mesh?.name).filter((name): name is string => !!name)
+        parts.map((p) => p.mesh?.name).filter((name): name is string => !!name)
       );
       if (parts.length < 2 || meshNames.size < 2) byModel.delete(model);
     }
@@ -337,7 +306,7 @@ export class AssetManager {
   }
 
   /** Instantiate every part of a multi-part FBX instance from one clone. */
-  private instantiateWholeModel(model: string, parts: PrefabNode[], blinkable: boolean): THREE.Object3D | null {
+  private instantiateWholeModel(model: string, parts: PrefabNode[]): THREE.Object3D | null {
     const source = this.models.get(model);
     if (!source) return null;
     const whole = cloneSkinned(source);
@@ -345,7 +314,7 @@ export class AssetManager {
     const hidden = new Set(
       parts
         .filter((p) => p.rendererEnabled === false)
-        .map((p) => p.meshName ?? p.mesh?.name)
+        .map((p) => p.mesh?.name)
         .filter((name): name is string => !!name)
     );
     if (hidden.size) {
@@ -354,12 +323,12 @@ export class AssetManager {
       });
     }
     const materials = [...new Set(parts.flatMap((p) => p.materials ?? []))];
-    this.applyMaterials(whole, materials.length ? materials : undefined, blinkable);
+    this.applyMaterials(whole, materials.length ? materials : undefined);
     return whole;
   }
 
   /** Instantiate a prefab node tree (models must be preloaded). */
-  instantiateTree(node: PrefabNode, blinkable = false): THREE.Object3D {
+  instantiateTree(node: PrefabNode): THREE.Object3D {
     const object = new THREE.Group();
     object.name = node.name;
     object.position.set(...node.pos);
@@ -372,7 +341,7 @@ export class AssetManager {
       if (source) {
         const mesh = cloneSkinned(source);
         this.selectAuthoredMesh(mesh, node);
-        this.applyMaterials(mesh, node.materials, blinkable);
+        this.applyMaterials(mesh, node.materials);
         object.add(mesh);
       }
     }
@@ -380,14 +349,14 @@ export class AssetManager {
     const multiPart = this.multiPartInstances(children);
     const absorbed = new Set<PrefabNode>();
     for (const [model, parts] of multiPart) {
-      const whole = this.instantiateWholeModel(model, parts, blinkable);
+      const whole = this.instantiateWholeModel(model, parts);
       if (!whole) continue;
       object.add(whole);
       for (const part of parts) absorbed.add(part);
     }
     for (const child of children) {
       if (absorbed.has(child)) continue;
-      object.add(this.instantiateTree(child, blinkable));
+      object.add(this.instantiateTree(child));
     }
     return object;
   }
