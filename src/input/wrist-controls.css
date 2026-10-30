@@ -1,0 +1,46 @@
+.wrist-controls {
+  position: fixed;
+  z-index: 20;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  left: 12px;
+  width: min(290px, calc(100vw - 24px));
+  max-height: calc(100dvh - 100px);
+  overflow: auto;
+  color: var(--ink);
+  background: rgba(7, 11, 31, 0.94);
+  border: 1px solid var(--glass-line);
+  border-radius: 14px;
+  font: 800 12px/1.4 var(--text);
+}
+.wrist-controls summary { cursor: pointer; padding: 12px 14px; }
+.wrist-indicator { float: right; color: var(--lime); }
+.wrist-body { display: grid; gap: 10px; padding: 0 14px 14px; }
+.wrist-body p { margin: 0; }
+.wrist-body > p:nth-of-type(1), .wrist-status { color: var(--ink-2); }
+.wrist-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0; }
+.wrist-legend div { padding: 6px 8px; border: 1px solid var(--glass-line); border-radius: 8px; }
+.wrist-legend dt { color: var(--lime); }
+.wrist-legend dd { margin: 0; color: var(--ink-2); font-weight: 600; }
+.wrist-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.wrist-actions button[hidden] { display: none; }
+.wrist-swap { display: flex; align-items: center; gap: 8px; color: var(--ink-2); cursor: pointer; }
+.wrist-body canvas { width: 100%; border-radius: 8px; }
+.wrist-body canvas[hidden] { display: none; }
+.wrist-reading { font-size: 15px; color: var(--lime); }
+.wrist-body button.wrist-recalibrate { background: transparent; color: var(--ink); border-color: var(--glass-line); }
+.wrist-body button {
+  cursor: pointer;
+  border: 1px solid var(--orange-hi);
+  border-radius: 8px;
+  padding: 9px 12px;
+  background: var(--orange);
+  color: var(--navy-900);
+  font: inherit;
+}
+.wrist-controls summary:focus-visible, .wrist-body button:focus-visible, .wrist-swap input:focus-visible { outline: 3px solid white; outline-offset: -3px; }
+/* Reserve space for the collapsed camera panel so it cannot cover Run/Menu
+   buttons in the phone's bottom-sheet layout. */
+@media (max-width: 760px) {
+  body:has(.wrist-controls) .screen { padding-bottom: calc(76px + var(--safe-bottom)); }
+}
+@media (max-height: 600px) { .wrist-body canvas { max-height: 130px; object-fit: contain; } }

@@ -8,7 +8,7 @@ const TIERS: Record<MissionType, number[]> = {
   pickup: [1000, 2000, 3000, 4000],
   barrierJump: [20, 50, 75, 100],
   sliding: [20, 30, 75, 150],
-  multiplier: [3, 5, 8, 10],
+  multiplier: [2, 3, 4, 5],
 };
 
 const DESCRIPTIONS: Record<MissionType, (max: number) => string> = {
@@ -38,6 +38,12 @@ export function newMission(excludeTypes: MissionType[] = []): Mission {
 
 /** Keep exactly two active missions (PlayerData.CheckMissionsCount). */
 export function topUpMissions(missions: Mission[]): void {
+  // Older saves used Unity's x8/x10 goals, beyond the web runner's x5 cap.
+  for (const mission of missions) {
+    if (mission.type === 'multiplier' && mission.max > 5) {
+      mission.max = TIERS.multiplier[Math.max(0, Math.min(3, mission.reward - 1))];
+    }
+  }
   while (missions.length < 2) {
     missions.push(newMission(missions.map((m) => m.type)));
   }

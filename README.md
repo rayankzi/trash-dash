@@ -106,3 +106,35 @@ All steps are idempotent (mtime-checked). The `unity-game/` folder is read-only 
 - Adaptive layered music stems, character accessories UI, and the tutorial are not ported yet.
 - The rendered world is a consistent mirror image of Unity's (handedness); segments randomly
   mirror in the original anyway, so gameplay is unaffected.
+
+## Wrist camera controls
+
+Open **Wrist controls** at the bottom left, choose **Enable camera**, and allow camera
+access. Use HTTPS or localhost. No Python process is needed: this ports the
+`wrist-rom-demo/wrist_flexion_v2.py` vertical-baseline calculation to MediaPipe in
+JavaScript. The first activation downloads the MediaPipe runtime and hand model
+from jsDelivr / Google; camera frames are processed locally and are not uploaded.
+
+- Keep your forearm vertical and show one hand from the side, as in the Python demo.
+- **Flexion → left arrow**, **extension → right arrow**, following the demo's signs
+  in the mirrored camera image. These labels depend on that camera/hand orientation.
+- First hold your wrist within **±12°** of vertical until the indicator says **Ready**.
+  Then bend more than **12°** to move. Neutral and new directions must hold for
+  **120 ms** to filter jitter. This uses the same neutral range as the displayed label.
+- **Hold to repeat**, like holding an arrow key: the first bend moves one lane,
+  repeats start **400 ms** later, then repeat every **250 ms**, within the three lanes.
+  Straighten to stop immediately, or bend the other way to reverse without a neutral pause.
+- Brief missed detections pause movement without forgetting that you're ready.
+  Tracking loss or stalled frames longer than **750 ms**, a pause/resume, or restarting
+  a run requires neutral again. No commands are queued while the hand is missing.
+- Movement only applies during gameplay. The indicator shows **Ready**, **Hold bend**,
+  **Holding**, **Center wrist**, **Find hand**, or **Waiting** to explain what's happening.
+  You can collapse the preview while tracking stays on. Keyboard arrows, W/S, and
+  pause/mute shortcuts also work when the camera panel is focused.
+- **Disable camera**, hiding the tab, or leaving the page stops the camera.
+- Jump and slide have **no wrist mapping yet**; their existing keyboard/swipe controls
+  remain available.
+
+The preview shows the same wrist (landmark 0) to middle knuckle (landmark 9) vector
+and upward baseline as v2. As in that demo, this is a 2D movement estimate; tilting
+the whole forearm can also trigger it.

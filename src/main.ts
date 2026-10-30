@@ -1,6 +1,9 @@
 import { Game, optionsFromQuery } from './game/Game';
 import { playerData } from './save/PlayerData';
 import { THEMES } from './data/themes';
+import { audio } from './audio/AudioManager';
+import { WristCameraControls } from './input/WristCameraControls';
+import { WristGameBridge } from './input/WristGameBridge';
 
 async function boot(): Promise<void> {
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -12,6 +15,7 @@ async function boot(): Promise<void> {
   // Debug / test handle for browser-console inspection and Playwright.
   (window as unknown as Record<string, unknown>).__game = {
     game,
+    audio,
     post: game.post,
     scene: game.scene,
     renderer: game.renderer,
@@ -37,6 +41,8 @@ async function boot(): Promise<void> {
   };
 
   await game.load();
+  const wrist = new WristGameBridge(game);
+  new WristCameraControls(() => wrist);
 }
 
 boot().catch((err) => {

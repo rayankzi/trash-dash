@@ -26,6 +26,8 @@ import { Effects } from '../rendering/Effects';
 import { ShieldAura } from '../rendering/ShieldAura';
 import { characterLight } from '../rendering/CurvedMaterial';
 import { CameraDirector } from './CameraDirector';
+import { assets } from '../core/AssetManager';
+import { RenderQuality, renderPixelRatio } from '../rendering/RenderQuality';
 import { seededRandom } from '../core/random';
 import { THEMES, isThemeKey, type ThemeKey } from '../data/themes';
 import { CAMERA_FOV, COUNTDOWN_SECONDS, COUNTDOWN_SPEED, FOG_FAR, FOG_NEAR, MAX_LIVES } from '../core/consts';
@@ -91,6 +93,10 @@ export class Game {
   private readonly ambient = new THREE.AmbientLight(0xffffff, 1);
   private readonly sun = new THREE.DirectionalLight(0xffffff, 1);
   private readonly timer = new THREE.Timer();
+  private readonly quality = new RenderQuality();
+  private loadoutBusy = false;
+  private stepDistance = 0;
+  private leftFoot = false;
 
   private state: GameState = 'loading';
   private stateBeforePause: GameState = 'playing';
@@ -143,11 +149,18 @@ export class Game {
     // Time spent in a hidden tab is not simulated on return.
     this.timer.connect(document);
     addEventListener('resize', () => this.resize());
+    // Capture gestures even while assets are loading; don't lose that first tap.
+    addEventListener('pointerdown', () => audio.unlock(), { capture: true });
+    addEventListener('keydown', () => audio.unlock(), { capture: true });
+    audio.onStateChange = () => this.ui.setSoundBlocked(audio.needsGesture);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this.pauseRun();
+      audio.setHidden(document.hidden);
+    });
   }
 
   private pixelRatio(): number {
-    // Capped so a 3x phone display does not ask for nine times the pixels.
-    return Math.min(devicePixelRatio, 2);
+    return renderPixelRatio(innerWidth, innerHeight, devicePixelRatio, this.quality.scale);
   }
 
   private resize(): void {
@@ -163,6 +176,11 @@ export class Game {
 
   get currentState(): GameState {
     return this.state;
+  }
+
+  /** True while a character/theme swap is in flight and menu clicks are ignored. */
+  get loadoutLocked(): boolean {
+    return this.loadoutBusy;
   }
 
   // ------------------------------------------------------------------ boot
@@ -183,7 +201,11 @@ export class Game {
 
     audio.setMuted(playerData.data.muted);
     this.ui.setMuted(playerData.data.muted);
+    const audioReady = audio.prepare();
+    audio.setHidden(document.hidden);
+    audio.playMusic('menu', 0.45);
     topUpMissions(playerData.data.missions);
+    playerData.save();
     this.missionProgress = new MissionProgress(playerData.data.missions);
 
     await Promise.all([coinPool.init(this.scene), this.character.load(playerData.data.usedCharacter), preloadConsumables()]);
@@ -209,6 +231,10 @@ export class Game {
     if (busy) await new Promise<void>((resolve) => (drained = resolve));
     manager.onStart = manager.onLoad = () => {};
 
+    this.ui.setLoadingLabel('Warming up the alley…');
+    await Promise.all([audioReady, assets.ready()]);
+    await this.warmRenderer();
+
     this.bindGameplayEvents();
     this.bindInput();
     this.bindUi();
@@ -219,6 +245,28 @@ export class Game {
     this.ui.showTitle();
     audio.playMusic('menu', 0.45);
     this.renderer.setAnimationLoop(() => this.frame());
+  }
+
+  /** Compile and upload both camera views behind the loading screen. */
+  private async warmRenderer(): Promise<void> {
+    const shot = this.director.current;
+    const shield = this.scene.getObjectByName('ShieldAura');
+    const shieldVisible = shield?.visible ?? false;
+    if (shield) shield.visible = true;
+    await this.renderer.compileAsync(this.scene, this.camera);
+    for (const view of ['follow', 'menu'] as const) {
+      this.director.setShot(view, 0);
+      this.director.update(0, 0);
+      this.character.update(0);
+      this.shadow.update(0, 0);
+      this.effects.update(0, this.renderer, this.camera);
+      this.post.render(0);
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
+    if (shield) shield.visible = shieldVisible;
+    this.director.setShot(shot, 0);
+    this.director.update(0, 0);
+    this.timer.reset();
   }
 
   // ------------------------------------------------------------------ wiring
@@ -242,7 +290,7 @@ export class Game {
       // Chained pickups climb in pitch, like a combo.
       this.coinStreak = this.runTime - this.lastCoinTime < COIN_STREAK_WINDOW ? Math.min(this.coinStreak + 1, 12) : 0;
       this.lastCoinTime = this.runTime;
-      audio.play('coin', 0.7, this.coinStreak * 50);
+      audio.play('coin', 0.7, this.coinStreak * 50, -this.controller.holder.position.x * 0.3);
     }) as EventListener);
     collider.addEventListener('premium', ((e: CustomEvent) => {
       this.effects.premium(e.detail.position);
@@ -285,17 +333,17 @@ export class Game {
       this.effects.dustBurst(this.feetPosition(), themeLook(this.themeKey).dustColor, 0.8);
     };
     this.controller.onLand = () => {
-      if (this.state === 'playing') this.effects.dustBurst(this.feetPosition(), themeLook(this.themeKey).dustColor);
+      if (this.state === 'playing') {
+        this.effects.dustBurst(this.feetPosition(), themeLook(this.themeKey).dustColor);
+        this.director.land();
+        audio.footstep(-this.controller.holder.position.x * 0.25, true);
+        this.stepDistance = 0;
+      }
     };
   }
 
   private bindInput(): void {
     this.controller.attachInput(document.body);
-    // Browsers only allow audio after a gesture.
-    const unlock = () => audio.unlock();
-    addEventListener('pointerdown', unlock);
-    addEventListener('keydown', unlock);
-
     addEventListener('keydown', (e) => {
       if (e.repeat) return;
       const key = e.key;
@@ -323,9 +371,6 @@ export class Game {
     });
     // Leaving the tab mid-run is an implicit pause rather than a free death.
     addEventListener('blur', () => this.pauseRun());
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) this.pauseRun();
-    });
   }
 
   private bindUi(): void {
@@ -336,6 +381,10 @@ export class Game {
     ui.onQuit = () => this.quitToMenu();
     ui.onPauseRequest = () => this.pauseRun();
     ui.onToggleMute = () => this.toggleMute();
+    ui.onEnableSound = () => {
+      if (playerData.data.muted) this.toggleMute();
+      else audio.unlock();
+    };
     ui.onButton = () => audio.play('button', 0.5);
     ui.onPickTheme = (key) => void this.selectTheme(key);
     ui.onPickCharacter = (key) => void this.selectCharacter(key);
@@ -364,7 +413,9 @@ export class Game {
     playerData.data.muted = !playerData.data.muted;
     playerData.save();
     audio.setMuted(playerData.data.muted);
+    if (!playerData.data.muted) audio.unlock();
     this.ui.setMuted(playerData.data.muted);
+    this.ui.setSoundBlocked(audio.needsGesture);
   }
 
   // ------------------------------------------------------------------ loadout
@@ -400,6 +451,7 @@ export class Game {
   }
 
   private async selectCharacter(key: string): Promise<void> {
+    if (this.loadoutBusy || this.state !== 'title') return;
     const def = CHARACTERS[key];
     const d = playerData.data;
     if (!def || d.usedCharacter === key) return;
@@ -414,24 +466,48 @@ export class Game {
     }
     d.usedCharacter = key;
     playerData.save();
-    await this.character.load(key);
-    this.controller.holder.add(this.character.root);
-    this.character.play('idle');
-    this.refreshLoadout();
+    this.loadoutBusy = true;
+    this.ui.setBusy(true);
+    try {
+      await this.character.load(key);
+      this.controller.holder.add(this.character.root);
+      this.character.play('idle');
+      await assets.ready();
+      await this.renderer.compileAsync(this.scene, this.camera);
+    } finally {
+      this.loadoutBusy = false;
+      this.refreshLoadout();
+      this.ui.setBusy(false);
+    }
   }
 
   /** Time of day is a free presentation option, not a shop item. */
   private async selectTheme(key: string): Promise<void> {
-    if (!isThemeKey(key) || this.themeKey === key) return;
+    if (!isThemeKey(key) || this.themeKey === key || this.loadoutBusy) return;
+    const wasPaused = this.state === 'paused';
+    this.loadoutBusy = true;
     this.themeKey = key;
     playerData.data.usedTheme = key;
     if (!playerData.data.themes.includes(key)) playerData.data.themes.push(key);
     playerData.save();
     this.refreshLoadout();
-    await Promise.all([this.trackManager.begin(key), this.environment.setTheme(key, THEMES[key])]);
-    this.applyThemeLook();
-    this.effects.clear();
-    if (this.state === 'playing' || this.state === 'countdown' || this.state === 'paused') this.startRun();
+    this.ui.setBusy(true);
+    this.renderer.setAnimationLoop(null);
+    try {
+      await Promise.all([this.trackManager.begin(key), this.environment.setTheme(key, THEMES[key])]);
+      await assets.ready();
+      this.applyThemeLook();
+      this.effects.clear();
+      await this.warmRenderer();
+    } finally {
+      this.loadoutBusy = false;
+      this.ui.setBusy(false);
+      this.renderer.setAnimationLoop(() => this.frame());
+    }
+    if (wasPaused) {
+      this.startRun();
+      this.pauseRun();
+    }
   }
 
   private applyThemeLook(): void {
@@ -459,8 +535,8 @@ export class Game {
 
   // ------------------------------------------------------------------ run flow
 
-  private resetRunState(): void {
-    this.trackManager.reset();
+  private resetRunState(rebuildTrack = true): void {
+    if (rebuildTrack) this.trackManager.reset();
     this.controller.reset();
     this.collider.reset();
     this.consumables.reset();
@@ -469,14 +545,16 @@ export class Game {
     this.coinStreak = 0;
     this.lastCoinTime = -Infinity;
     this.runTime = 0;
+    this.stepDistance = 0;
     this.lastMultiplier = 1;
     this.syncHud();
     this.ui.resetHud(this.hudState);
   }
 
   startRun(): void {
-    if (this.state === 'loading') return;
-    this.resetRunState();
+    if (this.state === 'loading' || this.loadoutBusy) return;
+    // The title already has a fresh, warmed track; don't rebuild it on click.
+    this.resetRunState(this.state !== 'title');
     this.state = 'countdown';
     this.countdownLeft = COUNTDOWN_TIME;
     this.goLeft = 0;
@@ -506,7 +584,7 @@ export class Game {
   }
 
   resumeRun(): void {
-    if (this.state !== 'paused') return;
+    if (this.state !== 'paused' || this.loadoutBusy) return;
     this.state = this.stateBeforePause;
     this.controller.inputEnabled = this.state === 'playing';
     audio.setSuspended(false);
@@ -514,7 +592,7 @@ export class Game {
   }
 
   quitToMenu(): void {
-    if (this.state === 'loading') return;
+    if (this.state === 'loading' || this.loadoutBusy) return;
     this.resetRunState();
     this.state = 'title';
     this.controller.inputEnabled = false;
@@ -617,6 +695,14 @@ export class Game {
 
     // Footstep dust while grounded, a denser stream while sliding.
     const grounded = this.controller.holder.position.y < 0.05;
+    if (grounded && !this.controller.isSliding && this.state === 'playing') {
+      this.stepDistance += this.trackManager.speed * dt;
+      if (this.stepDistance >= 1.7) {
+        this.stepDistance %= 1.7;
+        this.leftFoot = !this.leftFoot;
+        audio.footstep(-this.controller.holder.position.x * 0.25 + (this.leftFoot ? -0.08 : 0.08));
+      }
+    } else this.stepDistance = 0;
     if (grounded && this.state === 'playing') {
       this.effects.runDust(
         this.feetPosition(),
@@ -664,8 +750,10 @@ export class Game {
 
   private frame(): void {
     this.timer.update();
-    const dt = Math.min(this.timer.getDelta(), 0.1);
+    const rawDelta = this.timer.getDelta();
+    const dt = Math.min(rawDelta, 0.05);
     const time = this.timer.getElapsed();
+    if (!document.hidden && this.state !== 'paused' && this.quality.sample(rawDelta)) this.resize();
 
     switch (this.state) {
       case 'countdown':
@@ -694,6 +782,7 @@ export class Game {
     this.shadow.update(this.controller.holder.position.x, this.controller.holder.position.y);
     const speed = this.state === 'playing' ? THREE.MathUtils.smoothstep(this.trackManager.speedRatio, 0.3, 1) : 0;
     this.post.setSpeed(speed);
+    audio.setMotion(this.trackManager.speedRatio, this.state === 'playing', this.controller.isSliding);
     this.post.render(this.state === 'paused' ? 0 : dt);
   }
 }

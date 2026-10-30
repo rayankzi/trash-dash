@@ -99,6 +99,33 @@ kbd {
   display: none !important;
 }
 
+#ui-root .sound-prompt {
+  width: 100%;
+  margin: 12px 0 4px;
+  padding: 10px 14px;
+  border: 1px solid var(--gold);
+  border-radius: var(--r-sm);
+  background: rgba(255, 192, 77, 0.12);
+  color: var(--gold);
+  font: 800 14px var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+#ui-root .sound-prompt:disabled {
+  border-color: var(--glass-line);
+  background: var(--glass-hi);
+  color: var(--ink-2);
+  filter: none;
+}
+
+.sound-prompt span {
+  display: block;
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+
 /* ---------- buttons ------------------------------------------------------ */
 
 #ui-root button {
@@ -115,6 +142,15 @@ kbd {
 #ui-root button:focus-visible {
   outline: 3px solid var(--gold);
   outline-offset: 3px;
+}
+
+/* Wrist-driven focus: white ring with a dark halo so it reads on any card or theme. */
+#ui-root button.wrist-focus {
+  outline: 4px solid #fff;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 8px rgba(7, 11, 31, 0.85), 0 0 24px 10px var(--gold);
+  transform: scale(1.04);
+  z-index: 2;
 }
 
 #ui-root button:disabled {
@@ -1096,6 +1132,18 @@ kbd {
 
   .loadout {
     max-height: 58%;
+  }
+
+  #ui-root .sound-prompt {
+    padding: 8px 12px;
+    margin: 0;
+    font-size: 12px;
+  }
+
+  .sound-prompt span {
+    display: inline;
+    margin-left: 8px;
+    font-size: 10px;
   }
 
   .card h2 {

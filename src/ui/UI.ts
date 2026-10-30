@@ -119,6 +119,7 @@ export class UI {
   onPickCharacter: (key: string) => void = () => {};
   onPickTheme: (key: string) => void = () => {};
   onToggleMute: () => void = () => {};
+  onEnableSound: () => void = () => {};
   onClaim: (index: number) => void = () => {};
   /** Any button press, for the click sound. */
   onButton: () => void = () => {};
@@ -170,6 +171,7 @@ export class UI {
             <div class="pill best">${icon('trophy', 'pill-icon')}<span data-bind="best">0</span></div>
             <button class="icon-button mute-button" data-action="mute" aria-label="Toggle sound"></button>
           </div>
+          <button class="sound-prompt" data-action="enable-sound">Enable sound <span>Music &amp; alley sounds</span></button>
           <section>
             <h2>Runner</h2>
             <div class="choice-grid characters"></div>
@@ -248,6 +250,7 @@ export class UI {
       pause: () => this.onPauseRequest(),
       loadout: () => this.onQuit(),
       mute: () => this.onToggleMute(),
+      'enable-sound': () => this.onEnableSound(),
     };
     this.root.addEventListener('click', (event) => {
       const target = (event.target as HTMLElement).closest('button');
@@ -279,6 +282,24 @@ export class UI {
   /** 0..1 asset loading progress. */
   setLoadingProgress(progress: number): void {
     this.progressBar.style.transform = `scaleX(${Math.max(0.04, Math.min(1, progress))})`;
+  }
+
+  setLoadingLabel(label: string): void {
+    el(this.root, '.loading-label').textContent = label;
+  }
+
+  setSoundBlocked(blocked: boolean): void {
+    const button = el<HTMLButtonElement>(this.root, '.sound-prompt');
+    const label = this.muted ? 'Enable sound' : blocked ? 'Enable sound' : 'Sound on';
+    button.innerHTML = `${label}<span>Music &amp; alley sounds</span>`;
+    button.disabled = !this.muted && !blocked;
+  }
+
+  setBusy(busy: boolean): void {
+    for (const button of this.root.querySelectorAll<HTMLButtonElement>('[data-theme], [data-character], [data-action=start], [data-action=resume], [data-action=pause-restart], [data-action=quit]')) {
+      button.disabled = busy;
+    }
+    this.root.setAttribute('aria-busy', String(busy));
   }
 
   /** Enable the start button once boot has finished loading assets. */
@@ -423,6 +444,8 @@ export class UI {
     for (const button of this.root.querySelectorAll<HTMLElement>('[data-action=mute]')) {
       button.innerHTML = svg;
       button.setAttribute('aria-pressed', String(this.muted));
+      button.setAttribute('aria-label', this.muted ? 'Unmute sound' : 'Mute sound');
+      button.title = this.muted ? 'Unmute sound (M)' : 'Mute sound (M)';
     }
   }
 

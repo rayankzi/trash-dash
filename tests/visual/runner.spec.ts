@@ -13,7 +13,7 @@ const cases = [
  * browser has a presented buffer to capture.
  */
 async function composePinnedFrame(page: Page, animation: 'idle' | 'run', shot: 'follow' | 'menu'): Promise<void> {
-  await page.addStyleTag({ content: '#ui-root { display: none !important; }' });
+  await page.addStyleTag({ content: '#ui-root, .wrist-controls { display: none !important; }' });
   await page.evaluate(
     ([clip, cameraShot]) =>
       new Promise<void>((resolve) => {

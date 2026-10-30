@@ -97,9 +97,10 @@ export class Character {
       return action;
     }
     const prev = this.current ? this.actions.get(this.current) : undefined;
+    if (fade === 0) this.mixer.stopAllAction();
     action.reset();
     action.timeScale = timeScale;
-    if (prev && prev !== action) {
+    if (prev && prev !== action && fade > 0) {
       action.crossFadeFrom(prev, fade, false);
     }
     action.play();

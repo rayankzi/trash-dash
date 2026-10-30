@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Character } from './Character';
 import { TrackManager } from '../track/TrackManager';
+import type { HorizontalDirection } from '../input/WristGesture';
 import {
   LANE_OFFSET,
   LANE_CHANGE_SPEED,
@@ -32,7 +33,15 @@ export class CharacterController {
   private targetPosition = new THREE.Vector3();
   private jumpStart = 0;
   private slideStart = 0;
-  inputEnabled = false;
+  private enabled = false;
+  private inputGeneration = 0;
+  get inputEnabled(): boolean { return this.enabled; }
+  set inputEnabled(value: boolean) {
+    if (value !== this.enabled) this.inputGeneration++;
+    this.enabled = value;
+  }
+  /** Lets asynchronous input notice even a pause/resume between camera frames. */
+  get inputRevision(): number { return this.inputGeneration; }
   onJump: () => void = () => {};
   onSlide: () => void = () => {};
   /** Touchdown after a jump or fast-fall. */
@@ -61,11 +70,11 @@ export class CharacterController {
         // +X on screen-left), so screen-left = lane +1.
         case 'ArrowLeft':
         case 'a':
-          this.changeLane(1);
+          this.moveHorizontal('left');
           break;
         case 'ArrowRight':
         case 'd':
-          this.changeLane(-1);
+          this.moveHorizontal('right');
           break;
         case 'ArrowUp':
         case 'w':
@@ -84,20 +93,24 @@ export class CharacterController {
     window.addEventListener('keydown', onKey);
     this.cleanupInput.push(() => window.removeEventListener('keydown', onKey));
 
-    // Swipe: 1% of screen width threshold, dominant axis wins (Unity parity).
+    // Deliberate swipes only: tiny finger jitter and HUD taps are not moves.
     let startX = 0;
     let startY = 0;
     let swiping = false;
+    let pointerId = -1;
     const onDown = (e: PointerEvent) => {
+      if (!e.isPrimary || (e.target instanceof Element && e.target.closest('button'))) return;
+      pointerId = e.pointerId;
       startX = e.clientX;
       startY = e.clientY;
       swiping = true;
     };
     const onMove = (e: PointerEvent) => {
-      if (!swiping || !this.inputEnabled) return;
+      if (!swiping || e.pointerId !== pointerId || !this.inputEnabled) return;
       const dx = (e.clientX - startX) / window.innerWidth;
       const dy = (e.clientY - startY) / window.innerWidth;
-      if (Math.hypot(dx, dy) < 0.01) return;
+      const threshold = Math.max(18, Math.min(48, window.innerWidth * 0.035)) / window.innerWidth;
+      if (Math.hypot(dx, dy) < threshold) return;
       if (Math.abs(dy) > Math.abs(dx)) {
         if (dy < 0) this.jump();
         else this.slide();
@@ -106,16 +119,18 @@ export class CharacterController {
       }
       swiping = false;
     };
-    const onUp = () => {
-      swiping = false;
+    const onUp = (e: PointerEvent) => {
+      if (e.pointerId === pointerId) swiping = false;
     };
     target.addEventListener('pointerdown', onDown);
     target.addEventListener('pointermove', onMove);
     target.addEventListener('pointerup', onUp);
+    target.addEventListener('pointercancel', onUp);
     this.cleanupInput.push(() => {
       target.removeEventListener('pointerdown', onDown);
       target.removeEventListener('pointermove', onMove);
       target.removeEventListener('pointerup', onUp);
+      target.removeEventListener('pointercancel', onUp);
     });
   }
 
@@ -124,6 +139,8 @@ export class CharacterController {
   }
 
   reset(): void {
+    this.inputEnabled = false;
+    this.inputGeneration++;
     this.currentLane = 1;
     this.targetPosition.set(0, 0, 0);
     this.holder.position.set(0, 0, 0);
@@ -141,6 +158,12 @@ export class CharacterController {
     this.currentLane = target;
     this.targetPosition.x = (target - 1) * LANE_OFFSET;
     this.onLaneChange();
+  }
+
+  /** Shared by arrow keys and wrist input; +X is screen-left in this world. */
+  moveHorizontal(direction: HorizontalDirection): void {
+    if (!this.inputEnabled) return;
+    this.changeLane(direction === 'left' ? 1 : -1);
   }
 
   private buffer(action: 'jump' | 'slide'): void {

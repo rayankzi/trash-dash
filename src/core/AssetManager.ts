@@ -53,13 +53,27 @@ export class AssetManager {
   private gltfLoader = new GLTFLoader();
   private texLoader = new THREE.TextureLoader();
   private models = new Map<string, THREE.Group>();
+  private modelLoads = new Map<string, Promise<THREE.Group>>();
   private animations = new Map<string, THREE.AnimationClip[]>();
   private textures = new Map<string, THREE.Texture>();
+  private textureLoads: Promise<void>[] = [];
   private materialCache = new Map<string, THREE.Material>();
 
   async loadModel(path: string): Promise<THREE.Group> {
     const cached = this.models.get(path);
     if (cached) return cached;
+    const pending = this.modelLoads.get(path);
+    if (pending) return pending;
+    const loading = this.loadModelOnce(path);
+    this.modelLoads.set(path, loading);
+    try {
+      return await loading;
+    } finally {
+      this.modelLoads.delete(path);
+    }
+  }
+
+  private async loadModelOnce(path: string): Promise<THREE.Group> {
     const gltf: GLTF = await this.gltfLoader.loadAsync(`assets/${path}.glb`);
     // Unity is left-handed and negates X when it imports an FBX; glTF and
     // three.js are right-handed, so the converted meshes arrive mirrored
@@ -91,13 +105,20 @@ export class AssetManager {
     const url = `assets/${reference}`;
     let texture = this.textures.get(url);
     if (!texture) {
-      texture = this.texLoader.load(url);
+      this.textureLoads.push(new Promise<void>((resolve, reject) => {
+        texture = this.texLoader.load(url, () => resolve(), undefined, reject);
+      }));
+      texture = texture!;
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.flipY = false; // glTF UV convention
       texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
       this.textures.set(url, texture);
     }
     return texture;
+  }
+
+  async ready(): Promise<void> {
+    await Promise.all(this.textureLoads);
   }
 
   private materialInfo(name: string): {
@@ -242,6 +263,12 @@ export class AssetManager {
     const paths: string[] = [];
     const walk = (current: PrefabNode) => {
       if (current.model && current.rendererEnabled !== false) paths.push(current.model);
+      if (current.rendererEnabled !== false) {
+        for (const name of current.materials ?? []) {
+          const texture = MATERIALS[name]?.texture;
+          if (texture) this.getTexture(texture);
+        }
+      }
       current.children?.forEach(walk);
     };
     walk(node);

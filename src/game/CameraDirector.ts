@@ -84,6 +84,9 @@ export class CameraDirector {
   private shakeLeft = 0;
   /** Seconds since the current shot was chosen (drives sway / orbit). */
   private shotTime = 0;
+  private landingTime = 0;
+  private bank = 0;
+  private readonly reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -111,16 +114,24 @@ export class CameraDirector {
     this.fromFov = this.fov;
     this.blendDuration = duration;
     this.blend = duration > 0 ? 0 : 1;
+    if (duration === 0) this.fov = this.shotFov(0);
     this.shotTime = 0;
+    this.landingTime = 0;
+    this.bank = 0;
     if (shot === 'follow') this.followRig.set(...CAMERA_OFFSET);
   }
 
   shake(): void {
-    this.shakeLeft = CAMERA_SHAKE_TIME;
+    if (!this.reducedMotion.matches) this.shakeLeft = CAMERA_SHAKE_TIME;
+  }
+
+  land(): void {
+    if (!this.reducedMotion.matches) this.landingTime = 0.32;
   }
 
   update(dt: number, speedRatio: number): void {
     this.shotTime += dt;
+    this.landingTime = Math.max(0, this.landingTime - dt);
     this.computeShot(dt);
     if (this.blend < 1) {
       this.blend = Math.min(1, this.blend + dt / this.blendDuration);
@@ -147,7 +158,9 @@ export class CameraDirector {
     const holder = this.holder.position;
     switch (this.shot) {
       case 'follow': {
-        const follow = Math.min(1, dt * CAMERA_FOLLOW_DAMPING);
+        const follow = 1 - Math.exp(-dt * CAMERA_FOLLOW_DAMPING);
+        const bankTarget = this.reducedMotion.matches ? 0 : (holder.x * CAMERA_LANE_FOLLOW - this.followRig.x) * 0.035;
+        this.bank += (bankTarget - this.bank) * (1 - Math.exp(-dt * 10));
         this.followRig.x += (holder.x * CAMERA_LANE_FOLLOW - this.followRig.x) * follow;
         this.followRig.y += (CAMERA_OFFSET[1] + holder.y * 0.25 - this.followRig.y) * follow;
         this.shotPosition.copy(this.followRig);
@@ -158,7 +171,7 @@ export class CameraDirector {
         // Portrait screens stack the card under the runner, landscape ones put
         // it to the right: aim beside / below the cat accordingly.
         const portrait = this.camera.aspect < 0.8;
-        const sway = Math.sin(this.shotTime * 0.35) * 0.35;
+        const sway = this.reducedMotion.matches ? 0 : Math.sin(this.shotTime * 0.35) * 0.35;
         if (portrait) {
           this.shotPosition.set(holder.x + 1.1 + sway, 1.4, 7.2);
           this.shotTarget.set(holder.x, -0.65, 0);
@@ -172,7 +185,7 @@ export class CameraDirector {
         // Slow drift round the fallen runner; like the menu, landscape frames
         // leave the right-hand side free for the results card.
         const portrait = this.camera.aspect < 0.8;
-        const drift = this.shotTime * 0.12;
+        const drift = this.reducedMotion.matches ? 0 : Math.min(this.shotTime * 0.12, 0.35);
         this.shotPosition.set(holder.x + 1.4 + drift, 1.7, 3.8);
         this.shotTarget.set(holder.x + (portrait ? 0 : 1.2), portrait ? -0.4 : 0.35, 0);
         break;
@@ -183,6 +196,9 @@ export class CameraDirector {
   private apply(dt = 0): void {
     const camera = this.camera;
     camera.position.copy(this.position);
+    if (this.shot === 'follow' && this.landingTime > 0) {
+      camera.position.y -= Math.sin((1 - this.landingTime / 0.32) * Math.PI) * 0.085;
+    }
     if (this.shakeLeft > 0) {
       this.shakeLeft = Math.max(0, this.shakeLeft - dt);
       const amount = CAMERA_SHAKE_AMOUNT * (this.shakeLeft / CAMERA_SHAKE_TIME);
@@ -191,6 +207,7 @@ export class CameraDirector {
     }
     this.runner.updateMatrixWorld();
     camera.lookAt(this.runner.localToWorld(this.worldTarget.copy(this.target)));
+    if (this.shot === 'follow') camera.rotateZ(this.bank);
 
     const fov = verticalFov(this.fov, camera.aspect);
     if (Math.abs(camera.fov - fov) > 0.001) {

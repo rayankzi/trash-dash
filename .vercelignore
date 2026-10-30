@@ -1,0 +1,12 @@
+# CLI deploys upload the working tree. public/assets/ is gitignored (generated
+# from the Unity source) but must still be uploaded, so it is NOT listed here.
+node_modules
+dist
+tests
+test-results
+playwright-report
+reports
+tools
+.claude
+.DS_Store
+CHANGE_REPORT.md
