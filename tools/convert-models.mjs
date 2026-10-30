@@ -40,7 +40,7 @@ for (const rel of fg.sync('Assets/Models/**/*.{fbx,FBX}', { cwd: UNITY_ROOT })) 
 }
 for (const rel of fg.sync('Assets/Animation/*.{fbx,FBX}', { cwd: UNITY_ROOT })) {
   const outRel = path.join('anim', path.basename(rel).replace(/\.fbx$/i, ''));
-  jobs.push({ src: path.join(UNITY_ROOT, rel), out: path.join(OUT, outRel) });
+  jobs.push({ src: path.join(UNITY_ROOT, rel), out: path.join(OUT, outRel), animation: true });
 }
 
 let done = 0;
@@ -81,7 +81,9 @@ await Promise.all(
         // correct that here, driven entirely by the source FBX's own pivot
         // data -- see tools/lib/fbx-pivot.mjs for the full root-cause
         // writeup and the safety conditions that gate this.
-        const shift = detectStaticPivotOffsetMeters(job.src);
+        // Animation clips are skipped: their nodes carry animated transforms,
+        // which recenterGlbPositions refuses to touch.
+        const shift = job.animation ? null : detectStaticPivotOffsetMeters(job.src);
         if (shift) {
           // recenterGlbPositions itself re-checks the shift against the
           // mesh's own bounding-box extent and no-ops (returns []) for
