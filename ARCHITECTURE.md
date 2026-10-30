@@ -51,7 +51,7 @@ The game has two halves:
 
 ```mermaid
 flowchart LR
-  U[Unity project<br/>EndlessRunnerSampleGame] -->|npm run assets| T[tools/*.mjs]
+  U[Unity project<br/>EndlessRunnerSampleGame] -->|bun run assets| T[tools/*.mjs]
   T --> A[public/assets<br/>GLB · WebP · OGG · icons]
   T --> D[src/data<br/>segments · obstacles · themes · materials]
   A --> G[Browser game]
@@ -92,7 +92,7 @@ public/assets/            Generated assets (not committed)
 
 ## Asset pipeline
 
-`npm run assets` runs these scripts in order. Each one skips outputs that are
+`bun run assets` runs these scripts in order. Each one skips outputs that are
 newer than their inputs, so running it again is cheap. The Unity project is
 only read, never changed. Its location comes from `UNITY_SOURCE_DIR`, or
 defaults to `../EndlessRunnerSampleGame` next to this repository
@@ -591,7 +591,7 @@ The focused button gets the `wrist-focus` CSS class.
 
 ## Testing
 
-**Unit tests** (`npm test`, Vitest, in `tests/`):
+**Unit tests** (`bun run test`, Vitest, in `tests/`):
 
 | File | Covers |
 |---|---|
@@ -609,8 +609,8 @@ forearm direction, wrist bend and palm direction. Its maths is independent of
 `src/`, so the wrist tests check the real code against an independent
 reference rather than against itself.
 
-**Browser tests** (`npm run test:visual`, Playwright) run against
-`npm run preview`, so **build first** or they test old code. Each test runs on
+**Browser tests** (`bun run test:visual`, Playwright) run against
+`bun run preview`, so **build first** or they test old code. Each test runs on
 desktop Chromium and in Pixel 7 portrait emulation:
 
 - `runner.spec.ts`: screenshot comparisons of fixed day and night scenes (set
@@ -628,12 +628,12 @@ desktop Chromium and in Pixel 7 portrait emulation:
   failures and retries, and a whole session played by wrist alone.
 
 Headless Chromium renders WebGL in software, so tests allow 30 s for the game
-to load and 60 s per test. `npm run test:visual:update` updates the reference
+to load and 60 s per test. `bun run test:visual:update` updates the reference
 screenshots. Only run it when a visual change is intended.
 
 ## Deployment
 
-`npm run build` type-checks the code and writes a static site to `dist/`. The
+`bun run build` type-checks the code and writes a static site to `dist/`. The
 site is deployed to Vercel **from the command line** (`vercel deploy --prod`),
 not by connecting the GitHub repository. `public/assets` isn't committed, so
 a build from the repository would have no models or textures. The CLI uploads

@@ -66,9 +66,9 @@ somewhere else, set `UNITY_SOURCE_DIR` to its path.
 ### 2. Install and generate the assets
 
 ```bash
-npm install
-npm run assets                                     # writes public/assets and src/data
-# or: UNITY_SOURCE_DIR=/path/to/EndlessRunnerSampleGame npm run assets
+bun install
+bun run assets                                     # writes public/assets and src/data
+# or: UNITY_SOURCE_DIR=/path/to/EndlessRunnerSampleGame bun run assets
 ```
 
 You only have to do this once. Running it again skips files that are already
@@ -77,16 +77,16 @@ up to date.
 ### 3. Play
 
 ```bash
-npm run dev        # open http://localhost:5173
+bun run dev        # open http://localhost:5173
 ```
 
 Other commands:
 
 ```bash
-npm run build      # production build in dist/
-npm run preview    # serve that build locally
-npm test           # unit tests
-npm run test:visual  # browser tests and screenshot comparisons (run npm run build first)
+bun run build      # production build in dist/
+bun run preview    # serve that build locally
+bun run test       # unit tests (not `bun test`, which skips Vitest)
+bun run test:visual  # browser tests and screenshot comparisons (run bun run build first)
 ```
 
 ## Wrist controls
