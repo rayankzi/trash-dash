@@ -46,12 +46,22 @@ down. If you press slide in mid-air, you drop straight into a slide.
 
 ## Running it locally
 
-You need [Node.js](https://nodejs.org) 20.19 or newer.
+You need [Bun](https://bun.sh) and [Node.js](https://nodejs.org) 20.19 or
+newer. Bun installs packages and runs the scripts; Vite and the asset tools run
+on Node.
 
-### 1. Get the original game's assets
+```bash
+bun install
+bun run dev        # open http://localhost:5173
+```
 
-The models, textures and sounds aren't in this repository. A script generates
-them from Unity's original Trash Dash project, so download that first. It
+The generated models, textures and sounds are committed in `public/assets`, so
+that's all you need to play.
+
+### Regenerating the assets
+
+You only need this if you change the asset tools. A script generates the
+assets from Unity's original Trash Dash project, so download that first. It
 stores its large files with Git LFS:
 
 ```bash
@@ -63,22 +73,12 @@ By default, the script looks for `EndlessRunnerSampleGame` in the folder that
 contains this repository, so the two folders sit side by side. If you put it
 somewhere else, set `UNITY_SOURCE_DIR` to its path.
 
-### 2. Install and generate the assets
-
 ```bash
-bun install
 bun run assets                                     # writes public/assets and src/data
 # or: UNITY_SOURCE_DIR=/path/to/EndlessRunnerSampleGame bun run assets
 ```
 
-You only have to do this once. Running it again skips files that are already
-up to date.
-
-### 3. Play
-
-```bash
-bun run dev        # open http://localhost:5173
-```
+Running it again skips files that are already up to date.
 
 Other commands:
 

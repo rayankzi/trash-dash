@@ -1,5 +1,5 @@
-# CLI deploys upload the working tree. public/assets/ is gitignored (generated
-# from the Unity source) but must still be uploaded, so it is NOT listed here.
+# Files that CLI deploys don't need to upload. public/assets/ is needed at
+# runtime, so it is NOT listed here.
 node_modules
 dist
 tests
