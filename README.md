@@ -1,140 +1,158 @@
-# Trash Dash — Web
+# Trash Dash
 
-A JavaScript/WebGL port of Unity's "Trash Dash" endless-runner sample (in
-`../EndlessRunnerSampleGame`),
-built with **three.js + Vite + TypeScript**, reusing the original game's models, textures,
-animations, and audio.
+Trash Dash is an endless runner that plays in the browser. You run down a
+city alley as Trash Cat, dodging barriers and rats and picking up fishbones.
+The longer you last, the faster it gets. You can play with the keyboard,
+by swiping on a touch screen, or by bending your wrist in front of a webcam.
 
-## Run it
+It's a web version of Unity's *Trash Dash* sample game, built with
+[three.js](https://threejs.org), and it uses the original game's art, animation
+and sound.
+
+![Title screen](reports/2026-09-26/title-desktop.png)
+
+## How to play
+
+- **Three lanes.** Switch lanes to get around obstacles, jump over low
+  barriers and slide under high ones. Some barriers fill every lane, so you
+  have to jump or slide.
+- **Three lives.** A hit costs a life and makes you briefly invincible. Lose
+  all three and the run is over.
+- **Speed and score.** You keep speeding up during a run. The score
+  multiplier rises with your speed, up to ×5.
+- **Fishbones** are the main currency. **Sardines** are a rarer currency,
+  found on the track or earned from missions.
+- **Power-ups:** Magnet (pulls in nearby fishbones), Score ×2, Invincibility,
+  and Extra Life.
+- **Missions.** Two are active at a time, for example "Jump over 50
+  barriers" or "Slide for 30m". Finish one to earn sardines.
+- **Unlocks.** Spend your currency on a second character (Rubbish Raccoon)
+  and a night version of the alley.
+- Your progress, unlocks and top-10 scores are saved in the browser.
+
+### Keyboard and touch
+
+| Action | Keyboard | Touch |
+|---|---|---|
+| Change lane | ← / → or A / D | Swipe left / right |
+| Jump | ↑, W or Space | Swipe up |
+| Slide | ↓ or S | Swipe down |
+| Start a run | Space or Enter | Tap **Run!** |
+| Pause / resume | Esc or P | Pause button |
+| Mute / unmute | M | Sound button |
+
+If you press jump or slide just before landing, the move happens as you touch
+down. If you press slide in mid-air, you drop straight into a slide.
+
+## Running it locally
+
+You need [Node.js](https://nodejs.org) 20.19 or newer.
+
+### 1. Get the original game's assets
+
+The models, textures and sounds aren't in this repository. A script generates
+them from Unity's original Trash Dash project, so download that first. It
+stores its large files with Git LFS:
+
+```bash
+git lfs install
+git clone https://github.com/Unity-Technologies/EndlessRunnerSampleGame.git
+```
+
+By default, the script looks for `EndlessRunnerSampleGame` in the folder that
+contains this repository, so the two folders sit side by side. If you put it
+somewhere else, set `UNITY_SOURCE_DIR` to its path.
+
+### 2. Install and generate the assets
 
 ```bash
 npm install
-npm run assets   # converts EndlessRunnerSampleGame assets -> public/assets + src/data
-npm run dev      # http://localhost:5173
+npm run assets                                     # writes public/assets and src/data
+# or: UNITY_SOURCE_DIR=/path/to/EndlessRunnerSampleGame npm run assets
 ```
 
-Set `UNITY_SOURCE_DIR=/absolute/path/to/a/Unity/project` to use another source checkout.
-Unity object `fileID` values are kept as strings during extraction so 64-bit component
-references cannot be rounded by JavaScript.
+You only have to do this once. Running it again skips files that are already
+up to date.
 
-`npm run build` produces a production build in `dist/`.
-
-## Validate it
+### 3. Play
 
 ```bash
-npm test                 # extraction, model/texture, obstacle, and road-coverage invariants
-                         # (Unity-YAML checks skip when the Unity source is not checked out)
-npm run test:visual      # deterministic render checks + a full run-flow test, desktop + portrait
-npm run test:visual:update # intentionally refresh visual baselines
+npm run dev        # open http://localhost:5173
 ```
 
-## Controls
+Other commands:
 
-- **←/→** (or A/D): change lane
-- **↑** (or W / Space): jump — pressed just before landing, it fires on touchdown
-- **↓** (or S): slide — mid-air, it fast-falls straight into a slide
-- **Space / Enter**: start a run from the menu or results screen
-- **Esc** (or P): pause / resume
-- **M**: mute / unmute (saved)
-- Touch: swipe in any direction
+```bash
+npm run build      # production build in dist/
+npm run preview    # serve that build locally
+npm test           # unit tests
+npm run test:visual  # browser tests and screenshot comparisons (run npm run build first)
+```
 
-## Asset pipeline (`tools/`)
+## Wrist controls
 
-| Script | What it does |
-|---|---|
-| `convert-textures.mjs` | TIFF albedos → WebP (sharp); copies particle/UI PNGs |
-| `convert-models.mjs` | Every FBX → binary glTF via FBX2glTF; skips un-pulled Git-LFS stubs (`Dog.FBX`, `Dog_Run.fbx`, `MenuActors.fbx`) |
-| `extract-segments.mjs` | Parses Unity prefab YAML → `src/data/segments/**` (path nodes, obstacle spawn t-values, visual node trees) and `obstacles.json` |
-| `build-manifest.mjs` | Parses `ThemeData` + `.mat` YAML → `themes.json` (zones, fog, sky/cloud environment) and `materials.json` (shader family + exact texture URL/tint) |
-| `copy-audio-fonts.mjs` | Copies OGG SFX/music (the 36 MB adaptive-stem set is deliberately excluded) |
-| `extract-ui-icons.mjs` | Crops HUD/menu icons out of Unity's `UISpritesheet.png`, and the logo out of `Logo.png` (keying out its translucent sunburst) into `public/assets/ui/icons/` |
+You can play the whole game, including menus, by moving one wrist in front of
+your webcam. Hand tracking runs in your browser using
+[MediaPipe](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker).
+Video never leaves your computer. The first time you turn it on, the browser
+downloads the hand-tracking model (a few MB).
 
-All steps are idempotent (mtime-checked). The `unity-game/` folder is read-only source.
+### Turning it on
 
-## Architecture (`src/`)
+1. Open the **Wrist controls** panel in the bottom-left corner.
+2. Click **Enable camera** and allow camera access. This works on `localhost`
+   or an HTTPS site.
+3. Next time you visit, the camera starts on its own if your browser
+   remembers the permission.
 
-- `main.ts` — boot only: loads the save, reads the `?seed=&theme=&segment=&mirror=`
-  test hooks, creates the `Game` and exposes the `window.__game` debug/test handle.
-- `game/Game.ts` — owns the scene, frame loop and run state machine
-  (loading → title → countdown → playing ⇄ paused → gameover) and wires gameplay
-  events to audio, effects, camera and UI.
-- `game/CameraDirector.ts` — the one camera, driven through three shots in the
-  runner's local frame: a front showcase for the menu, Unity's chase camera
-  (lane drift, speed FOV kick, hit shake), and a death shot. Shot changes are a
-  crane move over the runner's head (a straight line would pass through it; a
-  side orbit clips the alley walls).
-- `track/TrackManager.ts` — port of Unity's `TrackManager.cs`: speed/score/multiplier,
-  10-segment rolling queue with exit→entry stitching and random mirroring, floating-origin
-  recentring, coin/powerup placement (1.5-unit lane walk with obstacle avoidance). Also
-  stitches obstacle-free backdrop segments *behind* the start line so the menu camera,
-  which looks back down the street, never sees the void.
-- `track/TrackSegment.ts` — piecewise-linear path sampling (`GetPointAt` equivalent).
-- `character/` — controller (lanes/jump/slide driven by world distance, exact Unity constants,
-  plus an input buffer, fast-fall and lane-change lean), AABB collider with lives +
-  invincibility blink, animation wrapper (Cat clips drive both characters — identical rigs).
-- `obstacles/` — SimpleBarricade, AllLane, Patrolling (ping-pong), Missile behaviours from
-  extracted prefab data.
-- `consumables/` — Magnet (15s), Score×2 (10s), Invincibility (10s), Extra Life; ramping
-  spawn chances as in the original.
-- `coins/CoinPool.ts` — 256 pooled fishbones as lightweight proxies, drawn as one
-  `InstancedMesh` (one draw call for the whole coin field).
-- `rendering/CurvedMaterial.ts` — the signature Unity clip-space curved-world shader,
-  plus shader-family-specific alpha, cloud, vertex-color and standard materials, and the
-  runner's own lit material (`characterLight`: wrap-lit toon step, coloured shadow side,
-  rim light that doubles as the powerup tint, invincibility blink).
-- `rendering/` also holds the presentation layer the original leaves to Unity's renderer:
-  `PostProcessing` (bloom + per-theme colour grade, vignette, speed lines, damage flash),
-  `Effects` (GPU point-sprite particles using the original particle textures: pickup
-  sparkles, footstep/landing dust, flipbook impact smoke, powerup auras), `ShieldAura`,
-  `SkyDome` (gradient sky replacing the flat theme fog colour), `GroundHaze` (fills the
-  void beside the authored street), `CharacterShadow`, and `ThemeLook` (per-theme
-  fog/ground/light rig and character lighting).
-- `data/themes.ts` — the one typed view of the extracted `themes.json`.
-- `save/` — versioned JSON save in localStorage (coins, premium, unlocks, top-10 leaderboard,
-  missions — 5 types, always 2 active, mute, run count); v1 saves migrate automatically.
-- `ui/` — HTML/CSS overlay: loading screen with progress, title/loadout (character and
-  time-of-day cards, mission progress bars), HUD (hearts, fishbones, score, multiplier,
-  powerup timer rings, toasts), pause and results (count-up score, new-best banner,
-  mission claims, leaderboard). Per-frame HUD updates are diffed, so a steady run only
-  touches the DOM when a number changes.
+### The two poses
 
-## Known gaps vs. the original
+Make a fist and hold your forearm upright. The way your hand faces the camera
+decides what a bend does:
 
-- The original running dog model is an unresolved Git-LFS pointer. The web build uses a
-  visible low-poly fallback automatically and will prefer the original after it is fetched
-  and assets are regenerated.
-- Adaptive layered music stems, character accessories UI, and the tutorial are not ported yet.
-- The rendered world is a consistent mirror image of Unity's (handedness); segments randomly
-  mirror in the original anyway, so gameplay is unaffected.
+| Pose | Bend | During a run | In menus |
+|---|---|---|---|
+| **Side-on** (thumb side or pinky side toward the camera) | Tilt left | Move one lane left | Previous button |
+| | Tilt right | Move one lane right | Next button |
+| **Knuckles toward the camera** | Bend back (extension) | Jump | Press the highlighted button |
+| | Bend forward (flexion) | Slide | Jump to the main button (Run!, Resume, …) |
 
-## Wrist camera controls
+To switch between steering and jumping/sliding, turn your forearm between the
+two poses.
 
-Open **Wrist controls** at the bottom left, choose **Enable camera**, and allow camera
-access. Use HTTPS or localhost. No Python process is needed: this ports the
-`wrist-rom-demo/wrist_flexion_v2.py` vertical-baseline calculation to MediaPipe in
-JavaScript. The first activation downloads the MediaPipe runtime and hand model
-from jsDelivr / Google; camera frames are processed locally and are not uploaded.
+### How a move is recognised
 
-- Keep your forearm vertical and show one hand from the side, as in the Python demo.
-- **Flexion → left arrow**, **extension → right arrow**, following the demo's signs
-  in the mirrored camera image. These labels depend on that camera/hand orientation.
-- First hold your wrist within **±12°** of vertical until the indicator says **Ready**.
-  Then bend more than **12°** to move. Neutral and new directions must hold for
-  **120 ms** to filter jitter. This uses the same neutral range as the displayed label.
-- **Hold to repeat**, like holding an arrow key: the first bend moves one lane,
-  repeats start **400 ms** later, then repeat every **250 ms**, within the three lanes.
-  Straighten to stop immediately, or bend the other way to reverse without a neutral pause.
-- Brief missed detections pause movement without forgetting that you're ready.
-  Tracking loss or stalled frames longer than **750 ms**, a pause/resume, or restarting
-  a run requires neutral again. No commands are queued while the hand is missing.
-- Movement only applies during gameplay. The indicator shows **Ready**, **Hold bend**,
-  **Holding**, **Center wrist**, **Find hand**, or **Waiting** to explain what's happening.
-  You can collapse the preview while tracking stays on. Keyboard arrows, W/S, and
-  pause/mute shortcuts also work when the camera panel is focused.
-- **Disable camera**, hiding the tab, or leaving the page stops the camera.
-- Jump and slide have **no wrist mapping yet**; their existing keyboard/swipe controls
-  remain available.
+- **Start straight.** Hold your wrist straight (within about 12°) until the
+  panel shows **Ready**. Moves only count after you've started from straight,
+  so you can't trigger one by accident while bringing your hand into view.
+- **Bend and hold briefly.** Left/right fires at about 12° of bend. Jump and
+  slide need about 20°, because judging depth from a webcam is less exact.
+  Hold the bend for a moment (about 0.1 s) so small twitches are ignored.
+- **Steering repeats like a held arrow key.** Keep tilting and you move
+  another lane after 0.4 s, then every 0.25 s. Straighten to stop, or tilt the
+  other way to reverse.
+- **Jump and slide fire once per bend.** Straighten your wrist before the next
+  one.
+- **Knuckles-to-camera needs a moment to set up.** The first time you turn to
+  this pose, hold your wrist straight and still until the panel says it's
+  ready. That sets "straight" for your camera angle. If jump and slide start
+  to feel off, click **Re-center up/down**.
+- **Swap jump and slide.** If jump and slide come out the wrong way round for
+  you, tick **Swap jump and slide**. The setting is saved.
+- **Hide your hand to pause.** If your hand is out of view for 1.5 seconds
+  during a run, the game pauses. After that, start from a straight wrist
+  again.
 
-The preview shows the same wrist (landmark 0) to middle knuckle (landmark 9) vector
-and upward baseline as v2. As in that demo, this is a 2D movement estimate; tilting
-the whole forearm can also trigger it.
+The preview in the panel draws the lines it tracks: wrist to middle knuckle in
+green, straight up in blue, and your knuckles in orange. For jump and slide it
+also shows a meter, because bending toward the camera is hard to see in a
+flat image. The status text tells you what to do next, for example **Center
+wrist**, **Hold bend** or **Find hand**.
+
+The keyboard and touch controls keep working while the camera is on. The
+camera turns off when you click **Disable camera**, switch tabs, or leave the
+page.
+
+## Learn more
+
+[ARCHITECTURE.md](ARCHITECTURE.md) explains how the code is organised.
