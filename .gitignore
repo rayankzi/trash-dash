@@ -1,6 +1,5 @@
 node_modules/
 dist/
-public/assets/
 tools/.cache/
 test-results/
 playwright-report/

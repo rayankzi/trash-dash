@@ -1,5 +1,5 @@
 // Validate generated runtime data and public asset references. This is part of
-// `npm run assets`, so an incomplete Unity extraction cannot ship silently.
+// `bun run assets`, so an incomplete Unity extraction cannot ship silently.
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import fg from 'fast-glob';

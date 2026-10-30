@@ -11,7 +11,7 @@
     "test:watch": "vitest",
     "test:visual": "playwright test",
     "test:visual:update": "playwright test --update-snapshots",
-    "assets": "npm run assets:textures && npm run assets:models && npm run assets:segments && npm run assets:manifest && npm run assets:audio && npm run assets:icons && npm run assets:validate",
+    "assets": "bun run assets:textures && bun run assets:models && bun run assets:segments && bun run assets:manifest && bun run assets:audio && bun run assets:icons && bun run assets:validate",
     "assets:textures": "node tools/convert-textures.mjs",
     "assets:models": "node tools/convert-models.mjs",
     "assets:segments": "node tools/extract-segments.mjs",
